@@ -1,5 +1,95 @@
--- ObsidianUi - Y2k Script Back2Back
--- Customized UI Library
+--[[
+    ObsidianUi - Developer API & Configuration Guide (Aesthetic Customization Edition)
+    
+    This guide documents the API, layouts, features, and styling of the ObsidianUi library.
+    It is designed to serve as clear context for both developers and AI assistants.
+
+    =====================================================================================
+    1. INITIALIZATION & SETUP
+    =====================================================================================
+    To load the UI library, theme manager, and save manager, load them from your repository:
+        local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+        local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+        local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+    =====================================================================================
+    2. CREATING A WINDOW
+    =====================================================================================
+    Library:CreateWindow(WindowInfo) instantiates the main application frame.
+    Parameters in WindowInfo:
+        - Title (string): Main window title. Shown in the top bar.
+        - Footer (string): Text shown in the footer.
+        - NotifySide (string): Position of notifications ("Left" or "Right").
+        - ShowCustomCursor (boolean): Set true to enable custom crosshair cursor tracking.
+        - Center (boolean): Automatically centers the window on the screen upon load.
+        - AutoShow (boolean): Automatically opens the window upon loading.
+        - Resizable (boolean): Enables resizing handle in the bottom-right corner.
+        - CornerRadius (number): Radius of rounded elements (default 10).
+
+    =====================================================================================
+    3. CREATING TABS
+    =====================================================================================
+    Window:AddTab(Name, IconName) creates a tab page and a tab selector button.
+        - Name (string): Tab title.
+        - IconName (string): Lucide icon identifier (e.g. "home", "swords", "eye", "settings").
+    Returns a Tab object.
+
+    =====================================================================================
+    4. CREATING GROUPBOXES
+    =====================================================================================
+    Tabs support Left and Right column layout using Groupboxes:
+        local Groupbox = Tab:AddLeftGroupbox(Name, IconName)
+        local Groupbox = Tab:AddRightGroupbox(Name, IconName)
+    If no IconName is specified, it auto-maps keywords (like "Player" -> "user", etc.).
+    Returns a Groupbox object.
+
+    =====================================================================================
+    5. ADDING UI COMPONENTS TO GROUPBOXES
+    =====================================================================================
+    Groupbox objects support the following method chain interfaces:
+
+    A. Toggles:
+        Groupbox:AddToggle(Index, { Text = "Label", Default = false, Callback = function(state) ... })
+        - Stores toggle state inside the global table `Library.Toggles[Index]`.
+        - Chainable: supports adding keybinds or color pickers, e.g.:
+          `AddToggle(...):AddKeyPicker(Index, ...) :AddColorPicker(Index, ...)`
+
+    B. Sliders (Smooth Tweens):
+        Groupbox:AddSlider(Index, { Text = "Label", Min = 0, Max = 100, Default = 10, Rounding = 0, Suffix = "", Callback = function(val) ... })
+        - Fills the slider track smoothly with a quad out tween animation over 0.08 seconds.
+        - Stores state inside the global table `Library.Options[Index]`.
+
+    C. Dropdowns:
+        Groupbox:AddDropdown(Index, { Text = "Label", Values = { "A", "B" }, Default = "A", Multi = false, Callback = function(selected) ... })
+        - Custom lists supporting single-select or multi-select dropdowns.
+        - Stores option reference in `Library.Options[Index]`.
+
+    D. KeyPickers (Keybinds):
+        Groupbox:AddLabel("Keybind"):AddKeyPicker(Index, { Default = "Q", Mode = "Hold", Text = "Key Label" })
+        - Allows registering keyboard shortcuts.
+        - Binds a visible setting button in the UI next to the label.
+        - Note: The floating keybinds indicator list has been removed, but callbacks and shortcuts remain fully functional.
+
+    E. Buttons:
+        Groupbox:AddButton({ Text = "Click Me", Tooltip = "Optional tip", Func = function() ... })
+        - Compact clickable buttons that trigger immediate actions.
+
+    F. Labels & Dividers:
+        Groupbox:AddLabel("Text Content")
+        Groupbox:AddDivider()
+
+    =====================================================================================
+    6. THEME & AUTO-SAVE CONFIGURATION
+    =====================================================================================
+    Integrate SaveManager & ThemeManager to manage player settings automatically:
+        ThemeManager:SetLibrary(Library)
+        SaveManager:SetLibrary(Library)
+        ThemeManager:SetFolder("ProjectName")
+        SaveManager:SetFolder("ProjectName/configs")
+        ThemeManager:ApplyToTab(Tab)         -- Adds theme control section
+        SaveManager:BuildConfigSection(Tab)  -- Adds configuration save/load section
+        SaveManager:LoadAutoloadConfig()     -- Restores player's saved auto-load config
+]]
 
 local repo = "https://raw.githubusercontent.com/Y2kScriptBack2Back/ObsidianUi/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
@@ -33,8 +123,11 @@ local Window = Library:CreateWindow({
 -- ─────────────────────────────────────────────
 local Tabs = {
     Main     = Window:AddTab("Main",        "home"),
-    Combat   = Window:AddTab("Combat",      "sword"),
+    Combat   = Window:AddTab("Combat",      "swords"),
     Visual   = Window:AddTab("Visuals",     "eye"),
+    Misc     = Window:AddTab("Misc",        "package"),
+    Configs  = Window:AddTab("Configs",     "database"),
+    Credits  = Window:AddTab("Credits",     "info"),
     Settings = Window:AddTab("Settings",    "settings"),
 }
 
@@ -272,15 +365,72 @@ VisualRight:AddToggle("NoFog", {
 })
 
 -- ─────────────────────────────────────────────
+--  MISC TAB
+-- ─────────────────────────────────────────────
+local MiscLeft  = Tabs.Misc:AddLeftGroupbox("Fun")
+local MiscRight = Tabs.Misc:AddRightGroupbox("Utility")
+
+MiscLeft:AddButton({
+    Text = "Spin Bot",
+    Tooltip = "Triggers a spin bot action",
+    Func = function()
+        Library:Notify("Spin Bot Activated!")
+    end,
+})
+
+MiscRight:AddToggle("InfJump", {
+    Text    = "Infinite Jump",
+    Default = false,
+    Tooltip = "Enables jumping infinitely in the air",
+    Callback = function(val)
+        -- logic
+    end,
+})
+
+-- ─────────────────────────────────────────────
+--  CREDITS TAB
+-- ─────────────────────────────────────────────
+local CreditsLeft = Tabs.Credits:AddLeftGroupbox("Information")
+CreditsLeft:AddLabel("Developer: Melio")
+CreditsLeft:AddLabel("UI Designer: Antigravity")
+CreditsLeft:AddLabel("Version: 2.0.0")
+CreditsLeft:AddLabel("Theme: Deep Ocean Cyan Gradient")
+
+-- ─────────────────────────────────────────────
 --  SETTINGS TAB
 -- ─────────────────────────────────────────────
 local MenuGroup = Tabs.Settings:AddLeftGroupbox("Interface")
 
-MenuGroup:AddToggle("KeybindMenuOpen", {
-    Default = Library.KeybindFrame.Visible,
-    Text    = "Show Keybind Menu",
-    Callback = function(value)
-        Library.KeybindFrame.Visible = value
+MenuGroup:AddButton({
+    Text = "Test Notification (Success)",
+    Func = function()
+        Library:Notify({
+            Title = "Action Completed",
+            Description = "Feature loaded successfully!",
+            Time = 5
+        })
+    end,
+})
+
+MenuGroup:AddButton({
+    Text = "Test Notification (Error)",
+    Func = function()
+        Library:Notify({
+            Title = "Warning Alert",
+            Description = "Verification failed, please retry.",
+            Time = 5
+        })
+    end,
+})
+
+MenuGroup:AddButton({
+    Text = "Test Notification (Info)",
+    Func = function()
+        Library:Notify({
+            Title = "System Notification",
+            Description = "Updates are available for this script.",
+            Time = 5
+        })
     end,
 })
 
@@ -350,8 +500,8 @@ SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
 ThemeManager:SetFolder("EscapeHub")
 SaveManager:SetFolder("EscapeHub/configs")
 
--- Build config + theme sections in Settings
-SaveManager:BuildConfigSection(Tabs.Settings)
+-- Build config section in Configs tab, and theme section in Settings
+SaveManager:BuildConfigSection(Tabs.Configs)
 ThemeManager:ApplyToTab(Tabs.Settings)
 
 SaveManager:LoadAutoloadConfig()

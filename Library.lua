@@ -22,6 +22,29 @@ end
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
+local logoUrl = "https://raw.githubusercontent.com/Y2kScriptBack2Back/Y2k-Script-Back2Back/main/wp14229113.jpg"
+local logoFilename = "y2k_logo.jpg"
+local logoAsset = nil
+
+local function GetLogoImage()
+    if logoAsset then
+        return logoAsset
+    end
+    if writefile and getcustomasset and readfile and isfile then
+        local success = pcall(function()
+            if not isfile(logoFilename) then
+                local data = game:HttpGet(logoUrl)
+                writefile(logoFilename, data)
+            end
+            logoAsset = getcustomasset(logoFilename)
+        end)
+        if success and logoAsset then
+            return logoAsset
+        end
+    end
+    return logoUrl
+end
+
 local Labels = {}
 local Buttons = {}
 local Toggles = {}
@@ -68,16 +91,16 @@ local Library = {
 
     MinSize = Vector2.new(480, 360),
     DPIScale = 1,
-    CornerRadius = 4,
+    CornerRadius = 10,
 
     IsLightTheme = false,
     Scheme = {
-        BackgroundColor = Color3.fromRGB(15, 15, 15),
-        MainColor = Color3.fromRGB(25, 25, 25),
-        AccentColor = Color3.fromRGB(125, 85, 255),
-        OutlineColor = Color3.fromRGB(40, 40, 40),
+        BackgroundColor = Color3.fromRGB(10, 16, 31),
+        MainColor = Color3.fromRGB(16, 27, 45),
+        AccentColor = Color3.fromRGB(0, 210, 229),
+        OutlineColor = Color3.fromRGB(0, 59, 77),
         FontColor = Color3.new(1, 1, 1),
-        Font = Font.fromEnum(Enum.Font.Code),
+        Font = Font.fromEnum(Enum.Font.Gotham),
 
         Red = Color3.fromRGB(255, 50, 50),
         Dark = Color3.new(0, 0, 0),
@@ -160,10 +183,10 @@ local Templates = {
         AutoShow = true,
         Center = true,
         Resizable = true,
-        CornerRadius = 4,
+        CornerRadius = 10,
         NotifySide = "Right",
         ShowCustomCursor = true,
-        Font = Enum.Font.Code,
+        Font = Enum.Font.Gotham,
         ToggleKeybind = Enum.KeyCode.RightControl,
         MobileButtonsSide = "Left",
     },
@@ -822,31 +845,25 @@ end
 
 function Library:MakeOutline(Frame: GuiObject, Corner: number?, ZIndex: number?)
     local Holder = New("Frame", {
-        BackgroundColor3 = "Dark",
-        Position = UDim2.fromOffset(-2, -2),
-        Size = UDim2.new(1, 4, 1, 4),
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(-1, -1),
+        Size = UDim2.new(1, 2, 1, 2),
         ZIndex = ZIndex,
         Parent = Frame,
     })
 
-    local Outline = New("Frame", {
-        BackgroundColor3 = "OutlineColor",
-        Position = UDim2.fromOffset(1, 1),
-        Size = UDim2.new(1, -2, 1, -2),
-        ZIndex = ZIndex,
-        Parent = Holder,
-    })
-
     if Corner and Corner > 0 then
         New("UICorner", {
-            CornerRadius = UDim.new(0, Corner + 1),
+            CornerRadius = UDim.new(0, Corner),
             Parent = Holder,
         })
-        New("UICorner", {
-            CornerRadius = UDim.new(0, Corner),
-            Parent = Outline,
-        })
     end
+
+    New("UIStroke", {
+        Color = "OutlineColor",
+        Thickness = 1,
+        Parent = Holder,
+    })
 
     return Holder
 end
@@ -4008,6 +4025,14 @@ function Library:CreateWindow(WindowInfo)
             CornerRadius = UDim.new(0, WindowInfo.CornerRadius - 1),
             Parent = MainFrame,
         })
+        New("UIGradient", {
+            Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(10, 16, 31)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 59, 77)),
+            }),
+            Rotation = 45,
+            Parent = MainFrame,
+        })
         do
             local Lines = {
                 {
@@ -4056,19 +4081,21 @@ function Library:CreateWindow(WindowInfo)
             Parent = TitleHolder,
         })
 
-        if WindowInfo.Icon then
-            New("ImageLabel", {
-                Image = tonumber(WindowInfo.Icon) and "rbxassetid://" .. WindowInfo.Icon or WindowInfo.Icon,
-                Size = WindowInfo.IconSize,
-                Parent = TitleHolder,
-            })
-        end
+        local LogoLabel = New("ImageLabel", {
+            Image = GetLogoImage(),
+            Size = UDim2.fromOffset(28, 28),
+            Parent = TitleHolder,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(0, 6),
+            Parent = LogoLabel,
+        })
 
         local X = Library:GetTextBounds(
             WindowInfo.Title,
             Library.Scheme.Font,
             20,
-            TitleHolder.AbsoluteSize.X - (WindowInfo.Icon and WindowInfo.IconSize.X.Offset + 6 or 0) - 12
+            TitleHolder.AbsoluteSize.X - 34 - 12
         )
         New("TextLabel", {
             BackgroundTransparency = 1,
@@ -4078,60 +4105,8 @@ function Library:CreateWindow(WindowInfo)
             Parent = TitleHolder,
         })
 
-        --// Search Box
-        SearchBox = New("TextBox", {
-            AnchorPoint = Vector2.new(0, 0.5),
-            BackgroundColor3 = "MainColor",
-            PlaceholderText = "Search",
-            Position = UDim2.new(0.3, 8, 0.5, 0),
-            Size = UDim2.new(0.7, -57, 1, -16),
-            TextScaled = true,
-            Parent = TopBar,
-        })
-        New("UICorner", {
-            CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
-            Parent = SearchBox,
-        })
-        New("UIPadding", {
-            PaddingBottom = UDim.new(0, 8),
-            PaddingLeft = UDim.new(0, 8),
-            PaddingRight = UDim.new(0, 8),
-            PaddingTop = UDim.new(0, 8),
-            Parent = SearchBox,
-        })
-        New("UIStroke", {
-            Color = "OutlineColor",
-            Parent = SearchBox,
-        })
-
-        local SearchIcon = Library:GetIcon("search")
-        if SearchIcon then
-            New("ImageLabel", {
-                Image = SearchIcon.Url,
-                ImageColor3 = "FontColor",
-                ImageRectOffset = SearchIcon.ImageRectOffset,
-                ImageRectSize = SearchIcon.ImageRectSize,
-                ImageTransparency = 0.5,
-                Size = UDim2.fromScale(1, 1),
-                SizeConstraint = Enum.SizeConstraint.RelativeYY,
-                Parent = SearchBox,
-            })
-        end
-
-        local MoveIcon = Library:GetIcon("move")
-        if MoveIcon then
-            New("ImageLabel", {
-                AnchorPoint = Vector2.new(1, 0.5),
-                Image = MoveIcon.Url,
-                ImageColor3 = "OutlineColor",
-                ImageRectOffset = MoveIcon.ImageRectOffset,
-                ImageRectSize = MoveIcon.ImageRectSize,
-                Position = UDim2.new(1, -10, 0.5, 0),
-                Size = UDim2.fromOffset(28, 28),
-                SizeConstraint = Enum.SizeConstraint.RelativeYY,
-                Parent = TopBar,
-            })
-        end
+        --// Dummy Search Box (for compatibility)
+        SearchBox = Instance.new("TextBox")
 
         --// Bottom Bar \\--
         local BottomBar = New("Frame", {
@@ -4199,7 +4174,7 @@ function Library:CreateWindow(WindowInfo)
         --// Tabs \\--
         Tabs = New("ScrollingFrame", {
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            BackgroundColor3 = "BackgroundColor",
+            BackgroundTransparency = 1,
             CanvasSize = UDim2.fromScale(0, 0),
             Position = UDim2.fromOffset(0, 49),
             ScrollBarThickness = 0,
@@ -4214,9 +4189,7 @@ function Library:CreateWindow(WindowInfo)
         --// Container \\--
         Container = New("Frame", {
             AnchorPoint = Vector2.new(1, 0),
-            BackgroundColor3 = function()
-                return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
-            end,
+            BackgroundTransparency = 1,
             Name = "Container",
             Position = UDim2.new(1, 0, 0, 49),
             Size = UDim2.new(0.7, -1, 1, -70),
@@ -4508,8 +4481,9 @@ function Library:CreateWindow(WindowInfo)
             do
                 GroupboxHolder = New("Frame", {
                     BackgroundColor3 = "BackgroundColor",
-                    Position = UDim2.fromOffset(2, 2),
-                    Size = UDim2.new(1, -4, 1, -4),
+                    BackgroundTransparency = 0.45,
+                    Position = UDim2.fromOffset(1, 1),
+                    Size = UDim2.new(1, -2, 1, -2),
                     Parent = Background,
                 })
                 New("UICorner", {
@@ -4594,8 +4568,9 @@ function Library:CreateWindow(WindowInfo)
             do
                 TabboxHolder = New("Frame", {
                     BackgroundColor3 = "BackgroundColor",
-                    Position = UDim2.fromOffset(2, 2),
-                    Size = UDim2.new(1, -4, 1, -4),
+                    BackgroundTransparency = 0.45,
+                    Position = UDim2.fromOffset(1, 1),
+                    Size = UDim2.new(1, -2, 1, -2),
                     Parent = Background,
                 })
                 New("UICorner", {

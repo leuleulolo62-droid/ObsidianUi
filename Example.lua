@@ -1,10 +1,10 @@
 -- example script by https://github.com/mstudio45/LinoriaLib/blob/main/Example.lua and modified by deivid
 -- You can suggest changes with a pull request or something
 
-local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
-local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
-local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
-local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+-- Local loading method for testing the modified local UI library:
+local Library = loadstring(readfile("Library.lua"))()
+local ThemeManager = loadstring(readfile("addons/ThemeManager.lua"))()
+local SaveManager = loadstring(readfile("addons/SaveManager.lua"))()
 
 local Options = Library.Options
 local Toggles = Library.Toggles
@@ -24,7 +24,7 @@ local Window = Library:CreateWindow({
 
 	Title = "mspaint",
 	Footer = "version: example",
-	Icon = 95816097006870,
+	-- Icon = 95816097006870, -- Commented out to display the default custom GitHub logo
 	NotifySide = "Right",
 	ShowCustomCursor = true,
 })

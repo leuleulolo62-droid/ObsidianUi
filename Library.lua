@@ -3167,7 +3167,7 @@ do
         })
         New("UIStroke", {
             Color = "OutlineColor",
-            Thickness = 1,
+            Thickness = 0.5,
             Parent = Bar,
         })
 
@@ -3201,7 +3201,8 @@ do
         })
         New("UIStroke", {
             Color = "FontColor",
-            Thickness = 1.5,
+            Thickness = 1,
+            Transparency = 0.55,
             Parent = Knob,
         })
 
@@ -3467,7 +3468,7 @@ do
             Parent = Holder,
         })
         New("UICorner", {
-            CornerRadius = UDim.new(0, WindowInfo.CornerRadius - 2),
+            CornerRadius = UDim.new(0, Library.CornerRadius - 2),
             Parent = Display,
         })
         New("UIStroke", {
@@ -4477,15 +4478,29 @@ function Library:CreateWindow(WindowInfo)
             })
 
             if Icon then
+                local IconContainer = New("Frame", {
+                    AnchorPoint = Vector2.new(0, 0.5),
+                    BackgroundColor3 = "AccentColor",
+                    BackgroundTransparency = 0.88,
+                    Position = UDim2.new(0, 0, 0.5, 0),
+                    Size = UDim2.fromOffset(18, 18),
+                    SizeConstraint = Enum.SizeConstraint.RelativeYY,
+                    Parent = TabButton,
+                })
+                New("UICorner", {
+                    CornerRadius = UDim.new(1, 0),
+                    Parent = IconContainer,
+                })
                 TabIcon = New("ImageLabel", {
+                    AnchorPoint = Vector2.new(0.5, 0.5),
                     Image = Icon.Url,
                     ImageColor3 = "AccentColor",
                     ImageRectOffset = Icon.ImageRectOffset,
                     ImageRectSize = Icon.ImageRectSize,
                     ImageTransparency = 0.5,
-                    Size = UDim2.fromScale(1, 1),
-                    SizeConstraint = Enum.SizeConstraint.RelativeYY,
-                    Parent = TabButton,
+                    Position = UDim2.fromScale(0.5, 0.5),
+                    Size = UDim2.fromOffset(12, 12),
+                    Parent = IconContainer,
                 })
             end
 
@@ -4789,19 +4804,31 @@ function Library:CreateWindow(WindowInfo)
                 end
 
                 if IconAsset then
+                    local GbIconContainer = New("Frame", {
+                        BackgroundColor3 = "AccentColor",
+                        BackgroundTransparency = 0.85,
+                        Size = UDim2.fromOffset(18, 18),
+                        Parent = HeaderHolder,
+                    })
+                    New("UICorner", {
+                        CornerRadius = UDim.new(1, 0),
+                        Parent = GbIconContainer,
+                    })
                     New("ImageLabel", {
+                        AnchorPoint = Vector2.new(0.5, 0.5),
                         Image = IconAsset.Url,
                         ImageColor3 = "AccentColor",
                         ImageRectOffset = IconAsset.ImageRectOffset,
                         ImageRectSize = IconAsset.ImageRectSize,
-                        Size = UDim2.fromOffset(16, 16),
-                        Parent = HeaderHolder,
+                        Position = UDim2.fromScale(0.5, 0.5),
+                        Size = UDim2.fromOffset(11, 11),
+                        Parent = GbIconContainer,
                     })
                 end
 
                 GroupboxLabel = New("TextLabel", {
                     BackgroundTransparency = 1,
-                    Size = UDim2.new(1, IconAsset and -24 or 0, 1, 0),
+                    Size = UDim2.new(1, IconAsset and -28 or 0, 1, 0),
                     Text = Info.Name,
                     TextSize = 15,
                     TextXAlignment = Enum.TextXAlignment.Left,

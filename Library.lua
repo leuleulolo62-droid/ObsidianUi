@@ -1299,26 +1299,27 @@ end))
 local TooltipLabel = New("TextLabel", {
     BackgroundColor3 = "BackgroundColor",
     BorderSizePixel = 0,
-    TextSize = 14,
+    TextSize = 15,
     TextWrapped = true,
     Visible = false,
     ZIndex = 20,
     Parent = ScreenGui,
 })
 New("UICorner", {
-    CornerRadius = UDim.new(0, 5),
+    CornerRadius = UDim.new(0, 9),
     Parent = TooltipLabel,
 })
 New("UIStroke", {
-    Color = "OutlineColor",
+    Color = "AccentColor",
     Thickness = 1,
+    Transparency = 0.55,
     Parent = TooltipLabel,
 })
 New("UIPadding", {
-    PaddingBottom = UDim.new(0, 4),
-    PaddingLeft = UDim.new(0, 8),
-    PaddingRight = UDim.new(0, 8),
-    PaddingTop = UDim.new(0, 4),
+    PaddingBottom = UDim.new(0, 9),
+    PaddingLeft = UDim.new(0, 13),
+    PaddingRight = UDim.new(0, 13),
+    PaddingTop = UDim.new(0, 9),
     Parent = TooltipLabel,
 })
 TooltipLabel:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
@@ -3296,7 +3297,7 @@ do
 
         local Holder = New("Frame", {
             BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, Info.Compact and 13 or 31),
+            Size = UDim2.new(1, 0, 0, Info.Compact and 15 or 42),
             Visible = Slider.Visible,
             Parent = Container,
         })
@@ -3305,9 +3306,9 @@ do
         if not Info.Compact then
             SliderLabel = New("TextLabel", {
                 BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 14),
+                Size = UDim2.new(1, 0, 0, 16),
                 Text = Slider.Text,
-                TextSize = 14,
+                TextSize = 15,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Parent = Holder,
             })
@@ -3319,7 +3320,7 @@ do
             BackgroundColor3 = "MainColor",
             BorderSizePixel = 0,
             Position = UDim2.fromScale(0, 1),
-            Size = UDim2.new(1, 0, 0, 8),
+            Size = UDim2.new(1, 0, 0, 11),
             Text = "",
             Parent = Holder,
         })
@@ -3329,7 +3330,7 @@ do
         })
         New("UIStroke", {
             Color = "OutlineColor",
-            Thickness = 0.5,
+            Thickness = 0.8,
             Parent = Bar,
         })
 
@@ -3353,7 +3354,7 @@ do
             BackgroundColor3 = "AccentColor",
             BorderSizePixel = 0,
             Position = UDim2.new(1, 0, 0.5, 0),
-            Size = UDim2.fromOffset(14, 14),
+            Size = UDim2.fromOffset(19, 19),
             ZIndex = 3,
             Parent = Fill,
         })
@@ -3362,16 +3363,29 @@ do
             Parent = Knob,
         })
         New("UIStroke", {
-            Color = "FontColor",
-            Thickness = 1,
-            Transparency = 0.55,
+            Color = Color3.new(1, 1, 1),
+            Thickness = 1.5,
+            Transparency = 0.5,
             Parent = Knob,
+        })
+        local KnobDot = New("Frame", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Color3.new(1, 1, 1),
+            BorderSizePixel = 0,
+            Position = UDim2.fromScale(0.5, 0.5),
+            Size = UDim2.fromOffset(7, 7),
+            ZIndex = 4,
+            Parent = Knob,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(1, 0),
+            Parent = KnobDot,
         })
 
         local DisplayLabel = New("TextLabel", {
             BackgroundTransparency = 1,
             Text = "",
-            TextSize = 14,
+            TextSize = 15,
             ZIndex = 2,
             Parent = Info.Compact and Bar or Holder,
         })
@@ -3380,7 +3394,7 @@ do
         else
             DisplayLabel.AnchorPoint = Vector2.new(1, 0)
             DisplayLabel.Position = UDim2.fromScale(1, 0)
-            DisplayLabel.Size = UDim2.new(0.5, 0, 0, 14)
+            DisplayLabel.Size = UDim2.new(0.5, 0, 0, 16)
             DisplayLabel.TextXAlignment = Enum.TextXAlignment.Right
         end
 
@@ -4400,33 +4414,65 @@ function Library:CreateWindow(WindowInfo)
             Rotation = 135,
             Parent = MainFrame,
         })
+
+        --// Accent top strip (Rayfield-style premium look)
+        local AccentStrip = New("Frame", {
+            BackgroundColor3 = "AccentColor",
+            BorderSizePixel = 0,
+            Size = UDim2.new(1, 0, 0, 3),
+            ZIndex = 3,
+            Parent = MainFrame,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(0, WindowInfo.CornerRadius - 1),
+            Parent = AccentStrip,
+        })
+        local AccentStripFill = New("Frame", {
+            AnchorPoint = Vector2.new(0, 1),
+            BackgroundColor3 = "AccentColor",
+            BorderSizePixel = 0,
+            Position = UDim2.fromScale(0, 1),
+            Size = UDim2.fromScale(1, 0.5),
+            ZIndex = 3,
+            Parent = AccentStrip,
+        })
+        Library:AddToRegistry(AccentStrip, { BackgroundColor3 = "AccentColor" })
+        Library:AddToRegistry(AccentStripFill, { BackgroundColor3 = "AccentColor" })
+
         do
-            -- Structural separator lines — visible at 0.5 transparency
+            -- Structural separator lines
             local Lines = {
                 {
                     -- Under title bar
                     Position = UDim2.fromOffset(0, 48),
                     Size = UDim2.new(1, 0, 0, 1),
-                    Transparency = 0.85,
+                    Transparency = 0.72,
                 },
                 {
                     -- Vertical separator between tabs and content
                     Position = UDim2.new(0.3, -1, 0, 48),
                     Size = UDim2.new(0, 1, 1, -68),
-                    Transparency = 0.85,
+                    Transparency = 0.68,
                 },
                 {
                     -- Above bottom bar
                     AnchorPoint = Vector2.new(0, 1),
                     Position = UDim2.new(0, 0, 1, -20),
                     Size = UDim2.new(1, 0, 0, 1),
-                    Transparency = 0.85,
+                    Transparency = 0.72,
                 },
             }
             for _, Info in pairs(Lines) do
                 Library:MakeLine(MainFrame, Info)
             end
             Library:MakeOutline(MainFrame, WindowInfo.CornerRadius, 0)
+            -- Subtle accent-tinted inner outline for depth
+            New("UIStroke", {
+                Color = "AccentColor",
+                Thickness = 1,
+                Transparency = 0.88,
+                Parent = MainFrame,
+            })
         end
 
         -- Mobile: auto-expand window to cover most of the screen
@@ -4547,14 +4593,41 @@ function Library:CreateWindow(WindowInfo)
             Parent = ResizeButton,
         })
 
+        --// Tab Sidebar "MENU" Nav Header
+        local TabSidebarHeader = New("Frame", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(0, 49),
+            Size = UDim2.new(0.3, 0, 0, 29),
+            ZIndex = 2,
+            Parent = MainFrame,
+        })
+        New("TextLabel", {
+            AnchorPoint = Vector2.new(0, 0.5),
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, 14, 0.5, 0),
+            Size = UDim2.new(1, -14, 0, 16),
+            Text = "NAVIGATION",
+            TextSize = 10,
+            TextTransparency = 0.45,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 2,
+            Parent = TabSidebarHeader,
+        })
+        Library:MakeLine(TabSidebarHeader, {
+            AnchorPoint = Vector2.new(0, 1),
+            Position = UDim2.fromScale(0, 1),
+            Size = UDim2.new(1, 0, 0, 1),
+            Transparency = 0.78,
+        })
+
         --// Tabs \\--
         Tabs = New("ScrollingFrame", {
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
             BackgroundTransparency = 1,
             CanvasSize = UDim2.fromScale(0, 0),
-            Position = UDim2.fromOffset(0, 49),
+            Position = UDim2.fromOffset(0, 79),
             ScrollBarThickness = 0,
-            Size = UDim2.new(0.3, 0, 1, -70),
+            Size = UDim2.new(0.3, 0, 1, -99),
             Parent = MainFrame,
         })
 
@@ -4566,7 +4639,7 @@ function Library:CreateWindow(WindowInfo)
         New("UIPadding", {
             PaddingLeft = UDim.new(0, 8),
             PaddingRight = UDim.new(0, 8),
-            PaddingTop = UDim.new(0, 8),
+            PaddingTop = UDim.new(0, 6),
             PaddingBottom = UDim.new(0, 8),
             Parent = Tabs,
         })

@@ -3538,7 +3538,7 @@ do
 
                 Slider:Display()
                 if Slider.Value ~= OldValue then
-                    Library:PlaySound("12222005", 0.18)
+                    Library:PlaySound("9114227192", 0.1)
                     Library:SafeCallback(Slider.Callback, Slider.Value)
                     Library:SafeCallback(Slider.Changed, Slider.Value)
                 end

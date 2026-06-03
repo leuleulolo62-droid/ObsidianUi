@@ -374,6 +374,17 @@ local function GetTeams()
     return TeamList
 end
 
+function Library:PlaySound(soundId, volume)
+    pcall(function()
+        local s = Instance.new("Sound")
+        s.SoundId = "rbxassetid://" .. tostring(soundId):gsub("rbxassetid://", "")
+        s.Volume = volume or 0.5
+        s.PlayOnRemove = true
+        s.Parent = SoundService
+        s:Destroy()
+    end)
+end
+
 function Library:UpdateKeybindFrame()
     if not Library.KeybindFrame then
         return
@@ -2499,6 +2510,7 @@ do
                     return
                 end
 
+                Library:PlaySound("6895079853", 0.45)
                 if Button.DoubleClick then
                     Button.Locked = true
 
@@ -2844,6 +2856,7 @@ do
                 return
             end
 
+            Library:PlaySound("6895079853", 0.45)
             Toggle:SetValue(not Toggle.Value)
         end)
 
@@ -3063,6 +3076,7 @@ do
                 return
             end
 
+            Library:PlaySound("6895079853", 0.45)
             Toggle:SetValue(not Toggle.Value)
         end)
 
@@ -3522,6 +3536,7 @@ do
 
                 Slider:Display()
                 if Slider.Value ~= OldValue then
+                    Library:PlaySound("5419098730", 0.25)
                     Library:SafeCallback(Slider.Callback, Slider.Value)
                     Library:SafeCallback(Slider.Changed, Slider.Value)
                 end
@@ -3678,6 +3693,7 @@ do
                     SearchBox.Text = ""
                     SearchBox.Visible = Active
                 end
+                Library:PlaySound("6895079853", 0.4)
             end
         )
         Dropdown.Menu = MenuTable
@@ -3820,6 +3836,7 @@ do
                     Button.MouseButton1Click:Connect(function()
                         local Try = not Selected
 
+                        Library:PlaySound("6895079853", 0.45)
                         if not (Dropdown:GetActiveValues() == 1 and not Try and not Info.AllowNull) then
                             Selected = Try
                             if Info.Multi then
@@ -4297,14 +4314,7 @@ function Library:Notify(...)
     if typeof(Data.Time) == "Instance" then
         TimerFill.Size = UDim2.fromScale(0, 1)
     end
-    if Data.SoundId then
-        New("Sound", {
-            SoundId = "rbxassetid://" .. tostring(Data.SoundId):gsub("rbxassetid://", ""),
-            Volume = 3,
-            PlayOnRemove = true,
-            Parent = SoundService,
-        }):Destroy()
-    end
+    Library:PlaySound(Data.SoundId or "6889456220", 0.45)
 
     Library.Notifications[FakeBackground] = Data
     
@@ -5390,6 +5400,8 @@ function Library:CreateWindow(WindowInfo)
                 Library.ActiveTab:Hide()
             end
 
+            Library:PlaySound("6895079853", 0.4)
+
             TweenService:Create(TabButton, Library.TweenInfo, {
                 BackgroundTransparency = 0.72,
             }):Play()
@@ -5652,6 +5664,8 @@ function Library:CreateWindow(WindowInfo)
             if Library.ActiveTab then
                 Library.ActiveTab:Hide()
             end
+
+            Library:PlaySound("6895079853", 0.4)
 
             TweenService:Create(TabButton, Library.TweenInfo, {
                 BackgroundTransparency = 0,

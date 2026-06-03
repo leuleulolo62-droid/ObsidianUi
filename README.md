@@ -23,7 +23,7 @@
 - [Additional Features](#additional-features)
   - [Notifications](#notifications)
   - [Tooltips](#tooltips)
-  - [Keybind Menu](#keybind-menu)
+
   - [Custom Cursor](#custom-cursor)
   - [Mobile Support](#mobile-support)
 - [Theming](#theming)
@@ -649,15 +649,6 @@ local Button = Groupbox:AddButton({
 local TooltipObject = Library:AddTooltip("Normal info", "Disabled info", someGuiElement)
 ```
 
-### Keybind Menu
-
-The library provides a built-in keybind menu that shows all keybinds.
-
-```lua
--- The keybind menu is shown automatically when any keybinds are added
--- You can customize its appearance:
-Library.ShowToggleFrameInKeybinds = true -- Show toggle state in keybind menu
-```
 
 ### Custom Cursor
 
@@ -734,7 +725,6 @@ Library:SetDPIScale(150) -- 150% scaling
 | `Library.NotifySide` | Which side notifications appear on |
 | `Library.ShowCustomCursor` | Whether to show the custom cursor |
 | `Library.ForceCheckbox` | Whether to always use checkboxes instead of switches |
-| `Library.ShowToggleFrameInKeybinds` | Whether to show toggle state in keybind menu |
 | `Library.NotifyOnError` | Whether to show notifications for errors |
 | `Library.ToggleKeybind` | The keybind to toggle the UI |
 

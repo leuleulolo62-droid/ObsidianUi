@@ -275,10 +275,9 @@ local Options = Library.Options
 local Toggles = Library.Toggles
 
 Library.ForceCheckbox = false
-Library.ShowToggleFrameInKeybinds = true
 
 local Window = Library:CreateWindow({
-    Title = "Escape",
+    Title = "Escape Keyboard",
     Footer = "Y2k Script Back2Back",
     NotifySide = "Right",
     ShowCustomCursor = true,
@@ -337,15 +336,6 @@ CombatLeft:AddDropdown("HitPart", {
     end,
 })
 
-CombatLeft:AddLabel("Keybind"):AddKeyPicker("AimKey", {
-    Default          = "Q",
-    Mode             = "Hold",
-    Text             = "Aim Lock Key",
-    SyncToggleState  = false,
-    Callback = function(val)
-        -- your logic here
-    end,
-})
 
 CombatRight:AddToggle("SilentAim", {
     Text    = "Silent Aim",
@@ -461,10 +451,9 @@ MiscRight:AddToggle("InfJump", {
 --  CREDITS TAB
 -- ─────────────────────────────────────────────
 local CreditsLeft = Tabs.Credits:AddLeftGroupbox("Information", "info")
-CreditsLeft:AddLabel("Developer: Melio")
-CreditsLeft:AddLabel("UI Designer: Antigravity")
-CreditsLeft:AddLabel("Version: 2.0.0")
-CreditsLeft:AddLabel("Theme: Deep Ocean Cyan Gradient")
+CreditsLeft:AddLabel("Developer: Y2k Script")
+CreditsLeft:AddLabel("UI Designer: Y2k Script")
+CreditsLeft:AddLabel("Version: 1.0.0")
 
 -- ─────────────────────────────────────────────
 --  SETTINGS TAB

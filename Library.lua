@@ -4053,7 +4053,10 @@ function Library:CreateWindow(WindowInfo)
             Size = false,
         })
 
-        MainFrame = New("Frame", {
+        -- Use CanvasGroup when available for smooth fade support
+        local frameType = "Frame"
+        pcall(function() Instance.new("CanvasGroup"):Destroy(); frameType = "CanvasGroup" end)
+        MainFrame = New(frameType, {
             BackgroundColor3 = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, -1)
             end,
@@ -4080,19 +4083,26 @@ function Library:CreateWindow(WindowInfo)
             Parent = MainFrame,
         })
         do
+            -- Structural separator lines — visible at 0.5 transparency
             local Lines = {
                 {
+                    -- Under title bar
                     Position = UDim2.fromOffset(0, 48),
                     Size = UDim2.new(1, 0, 0, 1),
+                    Transparency = 0.5,
                 },
                 {
+                    -- Vertical separator between tabs and content
                     Position = UDim2.fromScale(0.3, 0),
                     Size = UDim2.new(0, 1, 1, -21),
+                    Transparency = 0.5,
                 },
                 {
+                    -- Above bottom bar
                     AnchorPoint = Vector2.new(0, 1),
                     Position = UDim2.new(0, 0, 1, -20),
                     Size = UDim2.new(1, 0, 0, 1),
+                    Transparency = 0.5,
                 },
             }
             for _, Info in pairs(Lines) do
@@ -4101,7 +4111,15 @@ function Library:CreateWindow(WindowInfo)
             Library:MakeOutline(MainFrame, WindowInfo.CornerRadius, 0)
         end
 
-        if WindowInfo.Center then
+        -- Mobile: auto-expand window to cover most of the screen
+        if Library.IsMobile then
+            local vp = workspace.CurrentCamera.ViewportSize
+            MainFrame.Size = UDim2.fromOffset(
+                math.clamp(vp.X - 20, Library.MinSize.X, vp.X - 10),
+                math.clamp(vp.Y - 60, Library.MinSize.Y, vp.Y - 40)
+            )
+            MainFrame.Position = UDim2.fromOffset(10, 30)
+        elseif WindowInfo.Center then
             MainFrame.Position = UDim2.new(0.5, -MainFrame.Size.X.Offset / 2, 0.5, -MainFrame.Size.Y.Offset / 2)
         end
 
@@ -4113,23 +4131,28 @@ function Library:CreateWindow(WindowInfo)
         })
         Library:MakeDraggable(MainFrame, TopBar, false, true)
 
-        --// Title
+        --// Title — left-aligned logo + title
         local TitleHolder = New("Frame", {
             BackgroundTransparency = 1,
-            Size = UDim2.fromScale(0.3, 1),
+            Position = UDim2.fromOffset(10, 0),
+            Size = UDim2.new(0.55, 0, 1, 0),
             Parent = TopBar,
         })
         New("UIListLayout", {
             FillDirection = Enum.FillDirection.Horizontal,
-            HorizontalAlignment = Enum.HorizontalAlignment.Center,
+            HorizontalAlignment = Enum.HorizontalAlignment.Left,
             VerticalAlignment = Enum.VerticalAlignment.Center,
-            Padding = UDim.new(0, 6),
+            Padding = UDim.new(0, 8),
+            Parent = TitleHolder,
+        })
+        New("UIPadding", {
+            PaddingLeft = UDim.new(0, 2),
             Parent = TitleHolder,
         })
 
         local LogoLabel = New("ImageLabel", {
             Image = GetLogoImage(),
-            Size = UDim2.fromOffset(28, 28),
+            Size = UDim2.fromOffset(30, 30),
             Parent = TitleHolder,
         })
         New("UICorner", {
@@ -4137,17 +4160,13 @@ function Library:CreateWindow(WindowInfo)
             Parent = LogoLabel,
         })
 
-        local X = Library:GetTextBounds(
-            WindowInfo.Title,
-            Library.Scheme.Font,
-            20,
-            TitleHolder.AbsoluteSize.X - 34 - 12
-        )
+        local TitleFontSize = Library.IsMobile and 22 or 18
         New("TextLabel", {
             BackgroundTransparency = 1,
-            Size = UDim2.new(0, X, 1, 0),
+            Size = UDim2.new(1, -46, 1, 0),
             Text = WindowInfo.Title,
-            TextSize = 20,
+            TextSize = TitleFontSize,
+            TextXAlignment = Enum.TextXAlignment.Left,
             Parent = TitleHolder,
         })
 
@@ -4177,15 +4196,7 @@ function Library:CreateWindow(WindowInfo)
             Parent = BottomBar,
         })
 
-        --// Footer
-        New("TextLabel", {
-            BackgroundTransparency = 1,
-            Size = UDim2.fromScale(1, 1),
-            Text = WindowInfo.Footer,
-            TextSize = 14,
-            TextTransparency = 0.5,
-            Parent = BottomBar,
-        })
+        --// Footer text removed — only resize icon is shown
 
         --// Resize Button
         if WindowInfo.Resizable then
@@ -5034,27 +5045,38 @@ function Library:CreateWindow(WindowInfo)
             Library.Toggled = not Library.Toggled
         end
 
-        MainFrame.Visible = Library.Toggled
         ModalElement.Modal = Library.Toggled
 
-        if Library.Toggled and not Library.IsMobile then
-            local OldMouseIconEnabled = UserInputService.MouseIconEnabled
-            pcall(function()
-                RunService:UnbindFromRenderStep("ShowCursor")
-            end)
-            RunService:BindToRenderStep("ShowCursor", Enum.RenderPriority.Last.Value, function()
-                UserInputService.MouseIconEnabled = not Library.ShowCustomCursor
+        local isCanvasGroup = pcall(function() return MainFrame.GroupTransparency end) and MainFrame:IsA("CanvasGroup")
 
-                Cursor.Position = UDim2.fromOffset(Mouse.X, Mouse.Y)
-                Cursor.Visible = Library.ShowCustomCursor
+        if Library.Toggled then
+            -- Fade IN
+            MainFrame.Visible = true
+            if isCanvasGroup then
+                MainFrame.GroupTransparency = 1
+                TweenService:Create(MainFrame, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    GroupTransparency = 0,
+                }):Play()
+            end
 
-                if not (Library.Toggled and ScreenGui and ScreenGui.Parent) then
-                    UserInputService.MouseIconEnabled = OldMouseIconEnabled
-                    Cursor.Visible = false
+            if not Library.IsMobile then
+                local OldMouseIconEnabled = UserInputService.MouseIconEnabled
+                pcall(function()
                     RunService:UnbindFromRenderStep("ShowCursor")
-                end
-            end)
-        elseif not Library.Toggled then
+                end)
+                RunService:BindToRenderStep("ShowCursor", Enum.RenderPriority.Last.Value, function()
+                    UserInputService.MouseIconEnabled = not Library.ShowCustomCursor
+                    Cursor.Position = UDim2.fromOffset(Mouse.X, Mouse.Y)
+                    Cursor.Visible = Library.ShowCustomCursor
+                    if not (Library.Toggled and ScreenGui and ScreenGui.Parent) then
+                        UserInputService.MouseIconEnabled = OldMouseIconEnabled
+                        Cursor.Visible = false
+                        RunService:UnbindFromRenderStep("ShowCursor")
+                    end
+                end)
+            end
+        else
+            -- Fade OUT
             TooltipLabel.Visible = false
             for _, Option in pairs(Library.Options) do
                 if Option.Type == "ColorPicker" then
@@ -5063,6 +5085,21 @@ function Library:CreateWindow(WindowInfo)
                 elseif Option.Type == "Dropdown" or Option.Type == "KeyPicker" then
                     Option.Menu:Close()
                 end
+            end
+
+            if isCanvasGroup then
+                local t = TweenService:Create(MainFrame, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                    GroupTransparency = 1,
+                })
+                t:Play()
+                task.delay(0.2, function()
+                    if not Library.Toggled then
+                        MainFrame.Visible = false
+                        MainFrame.GroupTransparency = 0
+                    end
+                end)
+            else
+                MainFrame.Visible = false
             end
         end
     end

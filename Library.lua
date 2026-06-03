@@ -379,9 +379,11 @@ function Library:PlaySound(soundId, volume)
         local s = Instance.new("Sound")
         s.SoundId = "rbxassetid://" .. tostring(soundId):gsub("rbxassetid://", "")
         s.Volume = volume or 0.5
-        s.PlayOnRemove = true
         s.Parent = SoundService
-        s:Destroy()
+        s:Play()
+        task.delay(2, function()
+            s:Destroy()
+        end)
     end)
 end
 
@@ -3536,7 +3538,7 @@ do
 
                 Slider:Display()
                 if Slider.Value ~= OldValue then
-                    Library:PlaySound("5419098730", 0.25)
+                    Library:PlaySound("12222005", 0.18)
                     Library:SafeCallback(Slider.Callback, Slider.Value)
                     Library:SafeCallback(Slider.Changed, Slider.Value)
                 end

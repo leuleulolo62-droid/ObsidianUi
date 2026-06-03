@@ -92,7 +92,7 @@ local Library = {
 
     MinSize = Vector2.new(480, 360),
     DPIScale = 1,
-    CornerRadius = 10,
+    CornerRadius = 14,
 
     IsLightTheme = false,
     Scheme = {
@@ -184,7 +184,7 @@ local Templates = {
         AutoShow = true,
         Center = true,
         Resizable = true,
-        CornerRadius = 10,
+        CornerRadius = 14,
         NotifySide = "Right",
         ShowCustomCursor = true,
         Font = Enum.Font.Jura,
@@ -4412,49 +4412,23 @@ function Library:CreateWindow(WindowInfo)
                     Transparency = 0.72,
                 },
                 {
-                    -- Vertical separator between tabs and content
+                    -- Vertical separator between tabs and content (extends to bottom)
                     Position = UDim2.new(0.3, -1, 0, 48),
-                    Size = UDim2.new(0, 1, 1, -68),
+                    Size = UDim2.new(0, 1, 1, -48),
                     Transparency = 0.68,
-                },
-                {
-                    -- Above bottom bar
-                    AnchorPoint = Vector2.new(0, 1),
-                    Position = UDim2.new(0, 0, 1, -20),
-                    Size = UDim2.new(1, 0, 0, 1),
-                    Transparency = 0.72,
                 },
             }
             for _, Info in pairs(Lines) do
                 Library:MakeLine(MainFrame, Info)
             end
-            -- Single clean accent-tinted border with gradient around the whole window
+            -- Clean minimalist OutlineColor border around the window
             local WindowBorder = New("UIStroke", {
-                Color = Color3.fromRGB(255, 255, 255),
-                Thickness = 1.5,
-                Transparency = 0.35,
+                Color = "OutlineColor",
+                Thickness = 1,
+                Transparency = 0.25,
                 Parent = MainFrame,
             })
-            local BorderGradient = New("UIGradient", {
-                Rotation = 45,
-                Parent = WindowBorder,
-            })
-            local function UpdateBorderGradient()
-                local accent = Library.Scheme.AccentColor
-                local h, s, v = accent:ToHSV()
-                local accent2 = Color3.fromHSV(h, s, math.max(0.2, v - 0.25))
-                BorderGradient.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, accent),
-                    ColorSequenceKeypoint.new(1, accent2),
-                })
-            end
-            UpdateBorderGradient()
-            Library:AddToRegistry(BorderGradient, {
-                Color = function()
-                    UpdateBorderGradient()
-                    return BorderGradient.Color
-                end
-            })
+            Library:AddToRegistry(WindowBorder, { Color = "OutlineColor" })
         end
 
         -- Mobile: auto-expand window to cover most of the screen
@@ -4502,7 +4476,7 @@ function Library:CreateWindow(WindowInfo)
             Parent = TitleHolder,
         })
         New("UICorner", {
-            CornerRadius = UDim.new(0, 8),
+            CornerRadius = UDim.new(1, 0),
             Parent = LogoLabel,
         })
 
@@ -4523,61 +4497,65 @@ function Library:CreateWindow(WindowInfo)
         --// Bottom Bar \\--
         local BottomBar = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
-            BackgroundColor3 = function()
-                return Library:GetBetterColor(Library.Scheme.BackgroundColor, 4)
-            end,
-            BackgroundTransparency = 0.35,
+            BackgroundTransparency = 1,
             Position = UDim2.fromScale(0, 1),
             Size = UDim2.new(1, 0, 0, 20),
             Parent = MainFrame,
         })
-        do
-            local Cover = Library:MakeCover(BottomBar, "Top")
-            Cover.BackgroundTransparency = 0.35
-            Library:AddToRegistry(Cover, {
-                BackgroundColor3 = function()
-                    return Library:GetBetterColor(Library.Scheme.BackgroundColor, 4)
-                end,
-            })
-        end
-        New("UICorner", {
-            CornerRadius = UDim.new(0, WindowInfo.CornerRadius - 1),
-            Parent = BottomBar,
-        })
 
+        --// User avatar + name in sidebar bottom widget (just above the bottom border)
         local userId = LocalPlayer and LocalPlayer.UserId or 1
         local userName = LocalPlayer and (LocalPlayer.DisplayName or LocalPlayer.Name) or "Player"
 
-        local UserInfoFrame = New("Frame", {
-            BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(12, 0),
-            Size = UDim2.new(0.5, 0, 1, 0),
-            Parent = BottomBar,
+        local UserWidget = New("Frame", {
+            BackgroundColor3 = "MainColor",
+            Position = UDim2.new(0, 8, 1, -44),
+            Size = UDim2.new(0.3, -16, 0, 34),
+            Parent = MainFrame,
         })
-        New("UIListLayout", {
+        New("UICorner", {
+            CornerRadius = UDim.new(0, 8),
+            Parent = UserWidget,
+        })
+        local UserWidgetStroke = New("UIStroke", {
+            Color = "OutlineColor",
+            Thickness = 1,
+            Transparency = 0.4,
+            Parent = UserWidget,
+        })
+        Library:AddToRegistry(UserWidgetStroke, { Color = "OutlineColor" })
+
+        local UserListLayout = New("UIListLayout", {
             FillDirection = Enum.FillDirection.Horizontal,
             HorizontalAlignment = Enum.HorizontalAlignment.Left,
             VerticalAlignment = Enum.VerticalAlignment.Center,
-            Padding = UDim.new(0, 6),
-            Parent = UserInfoFrame,
+            Padding = UDim.new(0, 8),
+            Parent = UserWidget,
         })
+        New("UIPadding", {
+            PaddingLeft = UDim.new(0, 8),
+            PaddingRight = UDim.new(0, 8),
+            Parent = UserWidget,
+        })
+
         local UserAvatar = New("ImageLabel", {
             Image = "rbxassetid://10709819149",
-            Size = UDim2.fromOffset(14, 14),
-            Parent = UserInfoFrame,
+            Size = UDim2.fromOffset(20, 20),
+            Parent = UserWidget,
         })
         New("UICorner", {
             CornerRadius = UDim.new(1, 0),
             Parent = UserAvatar,
         })
+
         local UserText = New("TextLabel", {
             AutomaticSize = Enum.AutomaticSize.X,
             BackgroundTransparency = 1,
             Size = UDim2.fromScale(0, 1),
             Text = userName,
-            TextSize = 12,
+            TextSize = 13,
             TextXAlignment = Enum.TextXAlignment.Left,
-            Parent = UserInfoFrame,
+            Parent = UserWidget,
         })
 
         task.spawn(function()
@@ -4659,7 +4637,7 @@ function Library:CreateWindow(WindowInfo)
             CanvasSize = UDim2.fromScale(0, 0),
             Position = UDim2.fromOffset(0, 79),
             ScrollBarThickness = 0,
-            Size = UDim2.new(0.3, 0, 1, -99),
+            Size = UDim2.new(0.3, 0, 1, -129),
             Parent = MainFrame,
         })
 
@@ -4787,9 +4765,9 @@ function Library:CreateWindow(WindowInfo)
             Indicator = New("Frame", {
                 BackgroundColor3 = "AccentColor",
                 BorderSizePixel = 0,
-                Position = UDim2.new(0, -12, 0, -11),
-                Size = UDim2.new(0, 3, 0, 40),
-                Visible = false,
+                Position = UDim2.new(0, -8, 0.5, 0),
+                Size = UDim2.new(0, 3, 0, 0),
+                BackgroundTransparency = 1,
                 Parent = TabButton,
             })
             New("UICorner", {
@@ -5324,6 +5302,13 @@ function Library:CreateWindow(WindowInfo)
                     ImageTransparency = Hovering and 0.25 or 0.5,
                 }):Play()
             end
+            if Indicator then
+                TweenService:Create(Indicator, Library.TweenInfo, {
+                    Size = Hovering and UDim2.new(0, 3, 0, 14) or UDim2.new(0, 3, 0, 0),
+                    Position = Hovering and UDim2.new(0, -8, 0.5, -7) or UDim2.new(0, -8, 0.5, 0),
+                    BackgroundTransparency = Hovering and 0.5 or 1,
+                }):Play()
+            end
         end
 
         function Tab:Show()
@@ -5343,9 +5328,19 @@ function Library:CreateWindow(WindowInfo)
                 }):Play()
             end
             if Indicator then
-                Indicator.Visible = true
+                TweenService:Create(Indicator, Library.TweenInfo, {
+                    Size = UDim2.new(0, 3, 0, 22),
+                    Position = UDim2.new(0, -8, 0.5, -11),
+                    BackgroundTransparency = 0,
+                }):Play()
             end
+
+            -- Slide-up transition animation for TabContainer
+            TabContainer.Position = UDim2.new(0, 0, 0, 8)
             TabContainer.Visible = true
+            TweenService:Create(TabContainer, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Position = UDim2.new(0, 0, 0, 0)
+            }):Play()
 
             Library.ActiveTab = Tab
         end
@@ -5363,7 +5358,11 @@ function Library:CreateWindow(WindowInfo)
                 }):Play()
             end
             if Indicator then
-                Indicator.Visible = false
+                TweenService:Create(Indicator, Library.TweenInfo, {
+                    Size = UDim2.new(0, 3, 0, 0),
+                    Position = UDim2.new(0, -8, 0.5, 0),
+                    BackgroundTransparency = 1,
+                }):Play()
             end
             TabContainer.Visible = false
 
@@ -5573,7 +5572,13 @@ function Library:CreateWindow(WindowInfo)
                     ImageTransparency = 0,
                 }):Play()
             end
+            
+            -- Slide-up transition animation for TabContainer
+            TabContainer.Position = UDim2.new(0, 0, 0, 8)
             TabContainer.Visible = true
+            TweenService:Create(TabContainer, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Position = UDim2.new(0, 0, 0, 0)
+            }):Play()
 
             Library.ActiveTab = Tab
         end

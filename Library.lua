@@ -184,7 +184,7 @@ local Templates = {
         AutoShow = true,
         Center = true,
         Resizable = true,
-        CornerRadius = 14,
+        CornerRadius = 18,
         NotifySide = "Right",
         ShowCustomCursor = true,
         Font = Enum.Font.Jura,
@@ -1457,6 +1457,7 @@ do
             Size = UDim2.fromOffset(18, 18),
             Text = KeyPicker.Value,
             TextSize = 14,
+            Visible = (Idx == "MenuKeybind"),
             Parent = ToggleLabel,
         })
         New("UICorner", {
@@ -4421,14 +4422,22 @@ function Library:CreateWindow(WindowInfo)
             for _, Info in pairs(Lines) do
                 Library:MakeLine(MainFrame, Info)
             end
-            -- Clean minimalist OutlineColor border around the window
+            -- Clean minimalist OutlineColor border around the window with a friendly soft gradient
             local WindowBorder = New("UIStroke", {
-                Color = "OutlineColor",
-                Thickness = 1,
-                Transparency = 0.25,
+                Color = Color3.fromRGB(255, 255, 255),
+                Thickness = 1.5,
+                Transparency = 0.15,
                 Parent = MainFrame,
             })
-            Library:AddToRegistry(WindowBorder, { Color = "OutlineColor" })
+            local BorderGradient = New("UIGradient", {
+                Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 68, 90)),
+                    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(110, 120, 160)),
+                    ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 56, 75)),
+                }),
+                Rotation = 45,
+                Parent = WindowBorder,
+            })
         end
 
         -- Mobile: auto-expand window to cover most of the screen
@@ -4493,8 +4502,7 @@ function Library:CreateWindow(WindowInfo)
 
         --// Dummy Search Box (for compatibility)
         SearchBox = Instance.new("TextBox")
-
-        --// Bottom Bar \\--
+        --// Bottom Bar \--
         local BottomBar = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
             BackgroundTransparency = 1,
@@ -4503,38 +4511,40 @@ function Library:CreateWindow(WindowInfo)
             Parent = MainFrame,
         })
 
-        --// User avatar + name in sidebar bottom widget (just above the bottom border)
+        --// Sidebar user widget — avatar + username + userId, frosted glass style
         local userId = LocalPlayer and LocalPlayer.UserId or 1
         local userName = LocalPlayer and (LocalPlayer.DisplayName or LocalPlayer.Name) or "Player"
+        local userIdStr = "#" .. tostring(userId)
 
         local UserWidget = New("Frame", {
             BackgroundColor3 = "MainColor",
+            BackgroundTransparency = 0.9,
             Position = UDim2.new(0, 8, 1, -44),
             Size = UDim2.new(0.3, -16, 0, 34),
             Parent = MainFrame,
         })
         New("UICorner", {
-            CornerRadius = UDim.new(0, 8),
+            CornerRadius = UDim.new(0, 10),
             Parent = UserWidget,
         })
         local UserWidgetStroke = New("UIStroke", {
             Color = "OutlineColor",
             Thickness = 1,
-            Transparency = 0.4,
+            Transparency = 0.82,
             Parent = UserWidget,
         })
         Library:AddToRegistry(UserWidgetStroke, { Color = "OutlineColor" })
 
-        local UserListLayout = New("UIListLayout", {
+        New("UIListLayout", {
             FillDirection = Enum.FillDirection.Horizontal,
             HorizontalAlignment = Enum.HorizontalAlignment.Left,
             VerticalAlignment = Enum.VerticalAlignment.Center,
-            Padding = UDim.new(0, 8),
+            Padding = UDim.new(0, 7),
             Parent = UserWidget,
         })
         New("UIPadding", {
             PaddingLeft = UDim.new(0, 8),
-            PaddingRight = UDim.new(0, 8),
+            PaddingRight = UDim.new(0, 6),
             Parent = UserWidget,
         })
 
@@ -4548,14 +4558,39 @@ function Library:CreateWindow(WindowInfo)
             Parent = UserAvatar,
         })
 
-        local UserText = New("TextLabel", {
+        -- Name + ID stacked vertically in a sub-frame
+        local UserInfoColumn = New("Frame", {
             AutomaticSize = Enum.AutomaticSize.X,
             BackgroundTransparency = 1,
-            Size = UDim2.fromScale(0, 1),
-            Text = userName,
-            TextSize = 13,
-            TextXAlignment = Enum.TextXAlignment.Left,
+            Size = UDim2.new(0, 0, 1, 0),
             Parent = UserWidget,
+        })
+        New("UIListLayout", {
+            FillDirection = Enum.FillDirection.Vertical,
+            HorizontalAlignment = Enum.HorizontalAlignment.Left,
+            VerticalAlignment = Enum.VerticalAlignment.Center,
+            Padding = UDim.new(0, 1),
+            Parent = UserInfoColumn,
+        })
+
+        New("TextLabel", {
+            AutomaticSize = Enum.AutomaticSize.X,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(0, 0, 0, 14),
+            Text = userName,
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = UserInfoColumn,
+        })
+        New("TextLabel", {
+            AutomaticSize = Enum.AutomaticSize.X,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(0, 0, 0, 11),
+            Text = userIdStr,
+            TextSize = 10,
+            TextTransparency = 0.45,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = UserInfoColumn,
         })
 
         task.spawn(function()
@@ -4776,7 +4811,10 @@ function Library:CreateWindow(WindowInfo)
             })
 
             --// Tab Container \\--
-            TabContainer = New("Frame", {
+            local containerType = "Frame"
+            pcall(function() Instance.new("CanvasGroup"):Destroy(); containerType = "CanvasGroup" end)
+
+            TabContainer = New(containerType, {
                 BackgroundTransparency = 1,
                 Size = UDim2.fromScale(1, 1),
                 Visible = false,
@@ -4792,6 +4830,7 @@ function Library:CreateWindow(WindowInfo)
             })
             New("UIListLayout", {
                 Padding = UDim.new(0, 6),
+                SortOrder = Enum.SortOrder.LayoutOrder,
                 Parent = TabLeft,
             })
             do
@@ -4821,6 +4860,7 @@ function Library:CreateWindow(WindowInfo)
             })
             New("UIListLayout", {
                 Padding = UDim.new(0, 6),
+                SortOrder = Enum.SortOrder.LayoutOrder,
                 Parent = TabRight,
             })
             do
@@ -4896,11 +4936,35 @@ function Library:CreateWindow(WindowInfo)
         local Tab = {
             Groupboxes = {},
             Tabboxes = {},
+            Boxes = {},
             Sides = {
                 TabLeft,
                 TabRight,
             },
         }
+
+        function Tab:Balance()
+            local LeftHeight = 0
+            local RightHeight = 0
+
+            for _, box in ipairs(Tab.Boxes) do
+                local height = box.Holder.AbsoluteSize.Y
+                if height == 0 or not height then
+                    height = box.Holder.Size.Y.Offset
+                end
+                if height == 0 then
+                    height = 80
+                end
+
+                if LeftHeight <= RightHeight then
+                    box.Holder.Parent = TabLeft
+                    LeftHeight = LeftHeight + height + 6
+                else
+                    box.Holder.Parent = TabRight
+                    RightHeight = RightHeight + height + 6
+                end
+            end
+        end
 
         function Tab:UpdateWarningBox(Info)
             if typeof(Info.Visible) == "boolean" then
@@ -4974,10 +5038,11 @@ function Library:CreateWindow(WindowInfo)
                     Size = Side.Size,
                 })
             end
+            Tab:Balance()
         end
 
         function Tab:AddGroupbox(Info)
-            local Background = Library:MakeOutline(Info.Side == 1 and TabLeft or TabRight, WindowInfo.CornerRadius)
+            local Background = Library:MakeOutline(TabLeft, WindowInfo.CornerRadius)
             Background.Size = UDim2.fromScale(1, 0)
             Library:UpdateDPI(Background, {
                 Size = false,
@@ -5116,15 +5181,19 @@ function Library:CreateWindow(WindowInfo)
             local Groupbox = {
                 Holder = Background,
                 Container = GroupboxContainer,
+                Side = Info.Side,
                 Elements = {},
             }
 
             function Groupbox:Resize()
                 Background.Size = UDim2.new(1, 0, 0, GroupboxList.AbsoluteContentSize.Y + 53 * Library.DPIScale)
+                Tab:Balance()
             end
 
             setmetatable(Groupbox, BaseGroupbox)
 
+            table.insert(Tab.Boxes, Groupbox)
+            Background.LayoutOrder = #Tab.Boxes
             Groupbox:Resize()
             Tab.Groupboxes[Info.Name] = Groupbox
 
@@ -5140,7 +5209,8 @@ function Library:CreateWindow(WindowInfo)
         end
 
         function Tab:AddTabbox(Info)
-            local Background = Library:MakeOutline(Info.Side == 1 and TabLeft or TabRight, WindowInfo.CornerRadius)
+            local ParentTab = Tab
+            local Background = Library:MakeOutline(TabLeft, WindowInfo.CornerRadius)
             Background.Size = UDim2.fromScale(1, 0)
             Library:UpdateDPI(Background, {
                 Size = false,
@@ -5269,10 +5339,14 @@ function Library:CreateWindow(WindowInfo)
                 return Tab
             end
 
+            table.insert(ParentTab.Boxes, Tabbox)
+            Background.LayoutOrder = #ParentTab.Boxes
+            ParentTab:Balance()
+
             if Info.Name then
-                Tab.Tabboxes[Info.Name] = Tabbox
+                ParentTab.Tabboxes[Info.Name] = Tabbox
             else
-                table.insert(Tab.Tabboxes, Tabbox)
+                table.insert(ParentTab.Tabboxes, Tabbox)
             end
 
             return Tabbox
@@ -5336,10 +5410,14 @@ function Library:CreateWindow(WindowInfo)
             end
 
             -- Slide-up transition animation for TabContainer
-            TabContainer.Position = UDim2.new(0, 0, 0, 8)
+            TabContainer.Position = UDim2.new(0, 0, 0, 10)
+            if containerType == "CanvasGroup" then
+                TabContainer.GroupTransparency = 1
+            end
             TabContainer.Visible = true
-            TweenService:Create(TabContainer, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Position = UDim2.new(0, 0, 0, 0)
+            TweenService:Create(TabContainer, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Position = UDim2.new(0, 0, 0, 0),
+                GroupTransparency = containerType == "CanvasGroup" and 0 or nil
             }):Play()
 
             Library.ActiveTab = Tab
@@ -5364,7 +5442,21 @@ function Library:CreateWindow(WindowInfo)
                     BackgroundTransparency = 1,
                 }):Play()
             end
-            TabContainer.Visible = false
+            
+            if containerType == "CanvasGroup" then
+                local hideTween = TweenService:Create(TabContainer, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                    Position = UDim2.new(0, 0, 0, -6),
+                    GroupTransparency = 1
+                })
+                hideTween:Play()
+                task.delay(0.16, function()
+                    if Library.ActiveTab ~= Tab then
+                        TabContainer.Visible = false
+                    end
+                end)
+            else
+                TabContainer.Visible = false
+            end
 
             Library.ActiveTab = nil
         end
@@ -5576,7 +5668,7 @@ function Library:CreateWindow(WindowInfo)
             -- Slide-up transition animation for TabContainer
             TabContainer.Position = UDim2.new(0, 0, 0, 8)
             TabContainer.Visible = true
-            TweenService:Create(TabContainer, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            TweenService:Create(TabContainer, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
                 Position = UDim2.new(0, 0, 0, 0)
             }):Play()
 

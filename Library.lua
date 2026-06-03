@@ -4064,7 +4064,8 @@ function Library:Notify(...)
 
     local Background = New("Frame", {
         AutomaticSize = Enum.AutomaticSize.Y,
-        BackgroundColor3 = "MainColor",
+        BackgroundColor3 = "BackgroundColor",
+        BackgroundTransparency = 0.15,
         BorderSizePixel = 0,
         Position = Library.NotifySide:lower() == "left" and UDim2.new(-1, -6, 0, -2) or UDim2.new(1, 6, 0, -2),
         Size = UDim2.fromScale(1, 0),
@@ -4073,6 +4074,12 @@ function Library:Notify(...)
     })
     New("UICorner", {
         CornerRadius = UDim.new(0, Library.CornerRadius),
+        Parent = Background,
+    })
+    New("UIStroke", {
+        Color = notifAccentColor,
+        Thickness = 1,
+        Transparency = 0.45,
         Parent = Background,
     })
     Library:UpdateDPI(Background, {
@@ -4135,7 +4142,7 @@ function Library:Notify(...)
 
     -- Colored left accent stripe (success=green, error=red, info/default=cyan)
     local notifAccentColor = Library.Scheme.AccentColor
-    if textLower:find("success") or textLower:find("done") or textLower:find("loaded") then
+    if textLower:find("success") or textLower:find("done") or textLower:find("loaded") or textLower:find("complet") then
         notifAccentColor = Color3.fromRGB(50, 210, 120)
     elseif textLower:find("error") or textLower:find("fail") or textLower:find("warn") or textLower:find("alert") then
         notifAccentColor = Color3.fromRGB(255, 80, 80)
@@ -4265,16 +4272,25 @@ function Library:Notify(...)
     })
     local TimerBar = New("Frame", {
         BackgroundColor3 = "BackgroundColor",
-        BorderColor3 = "OutlineColor",
-        BorderSizePixel = 1,
+        BackgroundTransparency = 0.4,
+        BorderSizePixel = 0,
         Position = UDim2.fromOffset(0, 3),
-        Size = UDim2.new(1, 0, 0, 2),
+        Size = UDim2.new(1, 0, 0, 3),
         Parent = TimerHolder,
     })
+    New("UICorner", {
+        CornerRadius = UDim.new(0, 1),
+        Parent = TimerBar,
+    })
     TimerFill = New("Frame", {
-        BackgroundColor3 = "AccentColor",
+        BackgroundColor3 = notifAccentColor,
+        BorderSizePixel = 0,
         Size = UDim2.fromScale(1, 1),
         Parent = TimerBar,
+    })
+    New("UICorner", {
+        CornerRadius = UDim.new(0, 1),
+        Parent = TimerFill,
     })
     
     if typeof(Data.Time) == "Instance" then
@@ -4412,14 +4428,33 @@ function Library:CreateWindow(WindowInfo)
             for _, Info in pairs(Lines) do
                 Library:MakeLine(MainFrame, Info)
             end
-            -- Single clean accent-tinted border around the whole window
+            -- Single clean accent-tinted border with gradient around the whole window
             local WindowBorder = New("UIStroke", {
-                Color = "AccentColor",
+                Color = Color3.fromRGB(255, 255, 255),
                 Thickness = 1.5,
-                Transparency = 0.58,
+                Transparency = 0.35,
                 Parent = MainFrame,
             })
-            Library:AddToRegistry(WindowBorder, { Color = "AccentColor" })
+            local BorderGradient = New("UIGradient", {
+                Rotation = 45,
+                Parent = WindowBorder,
+            })
+            local function UpdateBorderGradient()
+                local accent = Library.Scheme.AccentColor
+                local h, s, v = accent:ToHSV()
+                local accent2 = Color3.fromHSV(h, s, math.max(0.2, v - 0.25))
+                BorderGradient.Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, accent),
+                    ColorSequenceKeypoint.new(1, accent2),
+                })
+            end
+            UpdateBorderGradient()
+            Library:AddToRegistry(BorderGradient, {
+                Color = function()
+                    UpdateBorderGradient()
+                    return BorderGradient.Color
+                end
+            })
         end
 
         -- Mobile: auto-expand window to cover most of the screen
@@ -4491,12 +4526,14 @@ function Library:CreateWindow(WindowInfo)
             BackgroundColor3 = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 4)
             end,
+            BackgroundTransparency = 0.35,
             Position = UDim2.fromScale(0, 1),
             Size = UDim2.new(1, 0, 0, 20),
             Parent = MainFrame,
         })
         do
             local Cover = Library:MakeCover(BottomBar, "Top")
+            Cover.BackgroundTransparency = 0.35
             Library:AddToRegistry(Cover, {
                 BackgroundColor3 = function()
                     return Library:GetBetterColor(Library.Scheme.BackgroundColor, 4)
@@ -4507,6 +4544,55 @@ function Library:CreateWindow(WindowInfo)
             CornerRadius = UDim.new(0, WindowInfo.CornerRadius - 1),
             Parent = BottomBar,
         })
+
+        local userId = LocalPlayer and LocalPlayer.UserId or 1
+        local userName = LocalPlayer and (LocalPlayer.DisplayName or LocalPlayer.Name) or "Player"
+
+        local UserInfoFrame = New("Frame", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(12, 0),
+            Size = UDim2.new(0.5, 0, 1, 0),
+            Parent = BottomBar,
+        })
+        New("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal,
+            HorizontalAlignment = Enum.HorizontalAlignment.Left,
+            VerticalAlignment = Enum.VerticalAlignment.Center,
+            Padding = UDim.new(0, 6),
+            Parent = UserInfoFrame,
+        })
+        local UserAvatar = New("ImageLabel", {
+            Image = "rbxassetid://10709819149",
+            Size = UDim2.fromOffset(14, 14),
+            Parent = UserInfoFrame,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(1, 0),
+            Parent = UserAvatar,
+        })
+        local UserText = New("TextLabel", {
+            AutomaticSize = Enum.AutomaticSize.X,
+            BackgroundTransparency = 1,
+            Size = UDim2.fromScale(0, 1),
+            Text = userName,
+            TextSize = 12,
+            TextColor3 = "FontColor",
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = UserInfoFrame,
+        })
+
+        task.spawn(function()
+            local success, content = pcall(function()
+                return Players:GetUserThumbnailAsync(
+                    userId,
+                    Enum.ThumbnailType.HeadShot,
+                    Enum.ThumbnailSize.Size48x48
+                )
+            end)
+            if success and content then
+                UserAvatar.Image = content
+            end
+        end)
 
         --// Footer text removed — only resize icon is shown
 
@@ -4554,7 +4640,7 @@ function Library:CreateWindow(WindowInfo)
             Position = UDim2.new(0, 14, 0.5, 0),
             Size = UDim2.new(1, -14, 0, 16),
             Text = "Tabs",
-            TextSize = 10,
+            TextSize = 13,
             TextTransparency = 0.45,
             TextXAlignment = Enum.TextXAlignment.Left,
             ZIndex = 2,

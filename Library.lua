@@ -80,6 +80,7 @@ local Library = {
 
     NotifySide = "Right",
     ShowCustomCursor = true,
+    CursorColor = Color3.fromRGB(0, 210, 229),
     ForceCheckbox = false,
     ShowToggleFrameInKeybinds = true,
     NotifyOnError = false,
@@ -599,38 +600,56 @@ local ModalElement = New("TextButton", {
 
 --// Cursor
 local Cursor
+local CursorHBar
+local CursorVBar
 do
     Cursor = New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundColor3 = "White",
-        Size = UDim2.fromOffset(9, 1),
+        BackgroundTransparency = 1,
+        Size = UDim2.fromOffset(12, 12),
         Visible = false,
         ZIndex = 999,
         Parent = ScreenGui,
     })
+
+    -- Horizontal bar
+    CursorHBar = New("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Library.CursorColor,
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(11, 1),
+        ZIndex = 999,
+        Parent = Cursor,
+    })
+    New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = CursorHBar })
     New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundColor3 = "Dark",
+        BackgroundColor3 = Color3.new(0,0,0),
+        BackgroundTransparency = 0.5,
         Position = UDim2.fromScale(0.5, 0.5),
         Size = UDim2.new(1, 2, 1, 2),
         ZIndex = 998,
-        Parent = Cursor,
+        Parent = CursorHBar,
     })
 
-    local CursorV = New("Frame", {
+    -- Vertical bar
+    CursorVBar = New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundColor3 = "White",
+        BackgroundColor3 = Library.CursorColor,
         Position = UDim2.fromScale(0.5, 0.5),
-        Size = UDim2.fromOffset(1, 9),
+        Size = UDim2.fromOffset(1, 11),
+        ZIndex = 999,
         Parent = Cursor,
     })
+    New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = CursorVBar })
     New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundColor3 = "Dark",
+        BackgroundColor3 = Color3.new(0,0,0),
+        BackgroundTransparency = 0.5,
         Position = UDim2.fromScale(0.5, 0.5),
         Size = UDim2.new(1, 2, 1, 2),
         ZIndex = 998,
-        Parent = CursorV,
+        Parent = CursorVBar,
     })
 end
 
@@ -650,6 +669,18 @@ do
         Padding = UDim.new(0, 6),
         Parent = NotificationArea,
     })
+end
+
+--// Expose cursor refs globally so color pickers can update them live
+pcall(function()
+    getgenv().ObsidianCursorHBar = CursorHBar
+    getgenv().ObsidianCursorVBar = CursorVBar
+end)
+
+function Library:SetCursorColor(Color: Color3)
+    Library.CursorColor = Color
+    if CursorHBar then CursorHBar.BackgroundColor3 = Color end
+    if CursorVBar then CursorVBar.BackgroundColor3 = Color end
 end
 
 --// Lib Functions \\--
@@ -729,6 +760,13 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
         FramePos = UI.Position
         Dragging = true
 
+        -- Drag visual feedback: subtle fade
+        if IsMainWindow then
+            TweenService:Create(UI, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                BackgroundTransparency = 0.18,
+            }):Play()
+        end
+
         Changed = Input.Changed:Connect(function()
             if Input.UserInputState ~= Enum.UserInputState.End then
                 return
@@ -738,6 +776,13 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
             if Changed and Changed.Connected then
                 Changed:Disconnect()
                 Changed = nil
+            end
+
+            -- Restore opacity when released
+            if IsMainWindow then
+                TweenService:Create(UI, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    BackgroundTransparency = 0,
+                }):Play()
             end
         end)
     end)
@@ -835,6 +880,7 @@ function Library:MakeLine(Frame: GuiObject, Info)
     local Line = New("Frame", {
         AnchorPoint = Info.AnchorPoint or Vector2.zero,
         BackgroundColor3 = "OutlineColor",
+        BackgroundTransparency = Info.Transparency or 0.82,
         Position = Info.Position,
         Size = Info.Size,
         Parent = Frame,

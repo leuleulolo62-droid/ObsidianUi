@@ -4576,7 +4576,6 @@ function Library:CreateWindow(WindowInfo)
             Size = UDim2.fromScale(0, 1),
             Text = userName,
             TextSize = 12,
-            TextColor3 = "FontColor",
             TextXAlignment = Enum.TextXAlignment.Left,
             Parent = UserInfoFrame,
         })

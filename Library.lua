@@ -1297,7 +1297,7 @@ end))
 
 --// Tooltip \\--
 local TooltipLabel = New("TextLabel", {
-    BackgroundColor3 = "BackgroundColor",
+    BackgroundTransparency = 1,
     BorderSizePixel = 0,
     TextSize = 15,
     TextWrapped = true,
@@ -1305,21 +1305,11 @@ local TooltipLabel = New("TextLabel", {
     ZIndex = 20,
     Parent = ScreenGui,
 })
-New("UICorner", {
-    CornerRadius = UDim.new(0, 9),
-    Parent = TooltipLabel,
-})
-New("UIStroke", {
-    Color = "AccentColor",
-    Thickness = 1,
-    Transparency = 0.55,
-    Parent = TooltipLabel,
-})
 New("UIPadding", {
-    PaddingBottom = UDim.new(0, 9),
-    PaddingLeft = UDim.new(0, 13),
-    PaddingRight = UDim.new(0, 13),
-    PaddingTop = UDim.new(0, 9),
+    PaddingBottom = UDim.new(0, 6),
+    PaddingLeft = UDim.new(0, 10),
+    PaddingRight = UDim.new(0, 10),
+    PaddingTop = UDim.new(0, 6),
     Parent = TooltipLabel,
 })
 TooltipLabel:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
@@ -3354,32 +3344,13 @@ do
             BackgroundColor3 = "AccentColor",
             BorderSizePixel = 0,
             Position = UDim2.new(1, 0, 0.5, 0),
-            Size = UDim2.fromOffset(19, 19),
+            Size = UDim2.fromOffset(16, 16),
             ZIndex = 3,
             Parent = Fill,
         })
         New("UICorner", {
             CornerRadius = UDim.new(1, 0),
             Parent = Knob,
-        })
-        New("UIStroke", {
-            Color = Color3.new(1, 1, 1),
-            Thickness = 1.5,
-            Transparency = 0.5,
-            Parent = Knob,
-        })
-        local KnobDot = New("Frame", {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            BackgroundColor3 = Color3.new(1, 1, 1),
-            BorderSizePixel = 0,
-            Position = UDim2.fromScale(0.5, 0.5),
-            Size = UDim2.fromOffset(7, 7),
-            ZIndex = 4,
-            Parent = Knob,
-        })
-        New("UICorner", {
-            CornerRadius = UDim.new(1, 0),
-            Parent = KnobDot,
         })
 
         local DisplayLabel = New("TextLabel", {
@@ -4415,30 +4386,6 @@ function Library:CreateWindow(WindowInfo)
             Parent = MainFrame,
         })
 
-        --// Accent top strip (Rayfield-style premium look)
-        local AccentStrip = New("Frame", {
-            BackgroundColor3 = "AccentColor",
-            BorderSizePixel = 0,
-            Size = UDim2.new(1, 0, 0, 3),
-            ZIndex = 3,
-            Parent = MainFrame,
-        })
-        New("UICorner", {
-            CornerRadius = UDim.new(0, WindowInfo.CornerRadius - 1),
-            Parent = AccentStrip,
-        })
-        local AccentStripFill = New("Frame", {
-            AnchorPoint = Vector2.new(0, 1),
-            BackgroundColor3 = "AccentColor",
-            BorderSizePixel = 0,
-            Position = UDim2.fromScale(0, 1),
-            Size = UDim2.fromScale(1, 0.5),
-            ZIndex = 3,
-            Parent = AccentStrip,
-        })
-        Library:AddToRegistry(AccentStrip, { BackgroundColor3 = "AccentColor" })
-        Library:AddToRegistry(AccentStripFill, { BackgroundColor3 = "AccentColor" })
-
         do
             -- Structural separator lines
             local Lines = {
@@ -4465,14 +4412,14 @@ function Library:CreateWindow(WindowInfo)
             for _, Info in pairs(Lines) do
                 Library:MakeLine(MainFrame, Info)
             end
-            Library:MakeOutline(MainFrame, WindowInfo.CornerRadius, 0)
-            -- Subtle accent-tinted inner outline for depth
-            New("UIStroke", {
+            -- Single clean accent-tinted border around the whole window
+            local WindowBorder = New("UIStroke", {
                 Color = "AccentColor",
-                Thickness = 1,
-                Transparency = 0.88,
+                Thickness = 1.5,
+                Transparency = 0.58,
                 Parent = MainFrame,
             })
+            Library:AddToRegistry(WindowBorder, { Color = "AccentColor" })
         end
 
         -- Mobile: auto-expand window to cover most of the screen
@@ -4606,7 +4553,7 @@ function Library:CreateWindow(WindowInfo)
             BackgroundTransparency = 1,
             Position = UDim2.new(0, 14, 0.5, 0),
             Size = UDim2.new(1, -14, 0, 16),
-            Text = "NAVIGATION",
+            Text = "Tabs",
             TextSize = 10,
             TextTransparency = 0.45,
             TextXAlignment = Enum.TextXAlignment.Left,

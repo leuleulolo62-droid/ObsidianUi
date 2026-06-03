@@ -3877,13 +3877,44 @@ function Library:Notify(...)
     local IconName = "bell"
     local textLower = (TitleText .. " " .. (Data.Description or "")):lower()
     if textLower:find("success") or textLower:find("done") or textLower:find("loaded") then
-        IconName = "check-circle"
+        IconName = "circle-check"
     elseif textLower:find("error") or textLower:find("fail") or textLower:find("warn") or textLower:find("alert") then
-        IconName = "alert-triangle"
+        IconName = "triangle-alert"
     elseif textLower:find("info") or textLower:find("hint") then
         IconName = "info"
     end
     local IconAsset = Library:GetIcon(IconName)
+    if not IconAsset then
+        -- Fallback to older Lucide v3 names or basic names
+        if IconName == "circle-check" then
+            IconAsset = Library:GetIcon("check-circle") or Library:GetIcon("check")
+        elseif IconName == "triangle-alert" then
+            IconAsset = Library:GetIcon("alert-triangle") or Library:GetIcon("alert-circle") or Library:GetIcon("circle-alert")
+        end
+    end
+    if not IconAsset then
+        IconAsset = Library:GetIcon("bell") or Library:GetIcon("info") or Library:GetIcon("package")
+    end
+
+    -- Colored left accent stripe (success=green, error=red, info/default=cyan)
+    local notifAccentColor = Library.Scheme.AccentColor
+    if textLower:find("success") or textLower:find("done") or textLower:find("loaded") then
+        notifAccentColor = Color3.fromRGB(50, 210, 120)
+    elseif textLower:find("error") or textLower:find("fail") or textLower:find("warn") or textLower:find("alert") then
+        notifAccentColor = Color3.fromRGB(255, 80, 80)
+    end
+    local NotifAccentBar = New("Frame", {
+        BackgroundColor3 = notifAccentColor,
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(2, 2),
+        Size = UDim2.new(0, 3, 1, -4),
+        ZIndex = 6,
+        Parent = Background,
+    })
+    New("UICorner", {
+        CornerRadius = UDim.new(0, Library.CornerRadius - 1),
+        Parent = NotifAccentBar,
+    })
 
     local TitleHolder = New("Frame", {
         BackgroundTransparency = 1,
@@ -4187,11 +4218,17 @@ function Library:CreateWindow(WindowInfo)
 
         local LogoLabel = New("ImageLabel", {
             Image = GetLogoImage(),
-            Size = UDim2.fromOffset(30, 30),
+            Size = UDim2.fromOffset(36, 36),
             Parent = TitleHolder,
         })
         New("UICorner", {
-            CornerRadius = UDim.new(0, 6),
+            CornerRadius = UDim.new(0, 8),
+            Parent = LogoLabel,
+        })
+        New("UIStroke", {
+            Color = "AccentColor",
+            Thickness = 1.5,
+            ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
             Parent = LogoLabel,
         })
 
@@ -4299,11 +4336,13 @@ function Library:CreateWindow(WindowInfo)
 
     --// Window Table \\--
     local Window = {}
+    local TabCount = 0
 
     function Window:AddTab(Name: string, Icon)
         local TabButton: TextButton
         local TabLabel
         local TabIcon
+        local Indicator
 
         local TabContainer
         local TabLeft
@@ -4314,11 +4353,21 @@ function Library:CreateWindow(WindowInfo)
         local WarningText
         local WarningStroke
 
+        TabCount = TabCount + 1
+        local layoutOrder = TabCount
+        local nameLower = Name:lower()
+        if nameLower:find("setting") then
+            layoutOrder = 99998
+        elseif nameLower:find("credit") then
+            layoutOrder = 99999
+        end
+
         Icon = Library:GetIcon(Icon)
         do
             TabButton = New("TextButton", {
                 BackgroundColor3 = "MainColor",
                 BackgroundTransparency = 1,
+                LayoutOrder = layoutOrder,
                 Size = UDim2.new(1, 0, 0, 40),
                 Text = "",
                 Parent = Tabs,
@@ -4355,6 +4404,19 @@ function Library:CreateWindow(WindowInfo)
                     Parent = TabButton,
                 })
             end
+
+            Indicator = New("Frame", {
+                BackgroundColor3 = "AccentColor",
+                BorderSizePixel = 0,
+                Position = UDim2.new(0, -12, 0, -11),
+                Size = UDim2.new(0, 3, 0, 40),
+                Visible = false,
+                Parent = TabButton,
+            })
+            New("UICorner", {
+                CornerRadius = UDim.new(0, 2),
+                Parent = Indicator,
+            })
 
             --// Tab Container \\--
             TabContainer = New("Frame", {
@@ -4611,11 +4673,36 @@ function Library:CreateWindow(WindowInfo)
                     Info.Name:lower():find("aim") and "crosshair" or
                     Info.Name:lower():find("combat") and "shield" or
                     Info.Name:lower():find("visual") and "eye" or
+                    Info.Name:lower():find("esp") and "scan" or
+                    Info.Name:lower():find("world") and "globe" or
+                    Info.Name:lower():find("fun") and "smile" or
+                    Info.Name:lower():find("utility") and "wrench" or
+                    Info.Name:lower():find("interface") and "monitor" or
+                    Info.Name:lower():find("theme") and "palette" or
+                    Info.Name:lower():find("save") and "save" or
                     Info.Name:lower():find("misc") and "package" or
                     Info.Name:lower():find("settings") and "settings" or
-                    Info.Name:lower():find("config") and "save" or nil
+                    Info.Name:lower():find("config") and "database" or
+                    Info.Name:lower():find("info") and "info" or
+                    Info.Name:lower():find("credit") and "heart" or "package"
                 )
                 local IconAsset = GroupboxIcon and Library:GetIcon(GroupboxIcon)
+                if not IconAsset and GroupboxIcon then
+                    if GroupboxIcon == "scan" then
+                        IconAsset = Library:GetIcon("eye")
+                    elseif GroupboxIcon == "globe" then
+                        IconAsset = Library:GetIcon("map")
+                    elseif GroupboxIcon == "smile" then
+                        IconAsset = Library:GetIcon("face-smile") or Library:GetIcon("smile-face")
+                    elseif GroupboxIcon == "wrench" then
+                        IconAsset = Library:GetIcon("tool") or Library:GetIcon("settings")
+                    elseif GroupboxIcon == "database" then
+                        IconAsset = Library:GetIcon("save") or Library:GetIcon("folder")
+                    end
+                end
+                if not IconAsset then
+                    IconAsset = Library:GetIcon("package") or Library:GetIcon("box")
+                end
 
                 if IconAsset then
                     New("ImageLabel", {
@@ -4835,6 +4922,9 @@ function Library:CreateWindow(WindowInfo)
                 return
             end
 
+            TweenService:Create(TabButton, Library.TweenInfo, {
+                BackgroundTransparency = Hovering and 0.88 or 1,
+            }):Play()
             TweenService:Create(TabLabel, Library.TweenInfo, {
                 TextTransparency = Hovering and 0.25 or 0.5,
             }):Play()
@@ -4851,7 +4941,7 @@ function Library:CreateWindow(WindowInfo)
             end
 
             TweenService:Create(TabButton, Library.TweenInfo, {
-                BackgroundTransparency = 0,
+                BackgroundTransparency = 0.72,
             }):Play()
             TweenService:Create(TabLabel, Library.TweenInfo, {
                 TextTransparency = 0,
@@ -4860,6 +4950,9 @@ function Library:CreateWindow(WindowInfo)
                 TweenService:Create(TabIcon, Library.TweenInfo, {
                     ImageTransparency = 0,
                 }):Play()
+            end
+            if Indicator then
+                Indicator.Visible = true
             end
             TabContainer.Visible = true
 
@@ -4877,6 +4970,9 @@ function Library:CreateWindow(WindowInfo)
                 TweenService:Create(TabIcon, Library.TweenInfo, {
                     ImageTransparency = 0.5,
                 }):Play()
+            end
+            if Indicator then
+                Indicator.Visible = false
             end
             TabContainer.Visible = false
 

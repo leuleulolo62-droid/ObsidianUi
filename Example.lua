@@ -127,8 +127,8 @@ local Tabs = {
     Visual   = Window:AddTab("Visuals",     "eye"),
     Misc     = Window:AddTab("Misc",        "package"),
     Configs  = Window:AddTab("Configs",     "database"),
-    Credits  = Window:AddTab("Credits",     "info"),
     Settings = Window:AddTab("Settings",    "settings"),
+    Credits  = Window:AddTab("Credits",     "info"),
 }
 
 -- ─────────────────────────────────────────────

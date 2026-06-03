@@ -1337,7 +1337,7 @@ do
         local KeybindsToggle = {
             Normal = KeyPicker.Mode ~= "Toggle",
         }
-        do
+        if Library.KeybindContainer then
             local Holder = New("TextButton", {
                 BackgroundTransparency = 1,
                 Size = UDim2.new(1, 0, 0, 16),
@@ -1422,6 +1422,12 @@ do
             KeybindsToggle.Checkbox = Checkbox
             KeybindsToggle.Loaded = true
             table.insert(Library.KeybindToggles, KeybindsToggle)
+        else
+            KeybindsToggle.Loaded = false
+            function KeybindsToggle:Display() end
+            function KeybindsToggle:SetText() end
+            function KeybindsToggle:SetVisibility() end
+            function KeybindsToggle:SetNormal() end
         end
 
         local MenuTable = Library:AddContextMenu(Picker, UDim2.fromOffset(62, 0), function()
@@ -3195,7 +3201,14 @@ do
             end
 
             local X = (Slider.Value - Slider.Min) / (Slider.Max - Slider.Min)
-            Fill.Size = UDim2.fromScale(X, 1)
+            local TargetSize = UDim2.fromScale(X, 1)
+            if Slider.CurrentTween then
+                Slider.CurrentTween:Cancel()
+            end
+            Slider.CurrentTween = TweenService:Create(Fill, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Size = TargetSize
+            })
+            Slider.CurrentTween:Play()
         end
 
         function Slider:OnChanged(Func)
@@ -3860,27 +3873,55 @@ function Library:Notify(...)
         Parent = Holder,
     })
 
-    local Title
-    local Desc
-    local TitleX = 0
-    local DescX = 0
+    local TitleText = Data.Title or "Notification"
+    local IconName = "bell"
+    local textLower = (TitleText .. " " .. (Data.Description or "")):lower()
+    if textLower:find("success") or textLower:find("done") or textLower:find("loaded") then
+        IconName = "check-circle"
+    elseif textLower:find("error") or textLower:find("fail") or textLower:find("warn") or textLower:find("alert") then
+        IconName = "alert-triangle"
+    elseif textLower:find("info") or textLower:find("hint") then
+        IconName = "info"
+    end
+    local IconAsset = Library:GetIcon(IconName)
 
-    local TimerFill
+    local TitleHolder = New("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 18),
+        Parent = Holder,
+    })
+    New("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        HorizontalAlignment = Enum.HorizontalAlignment.Left,
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+        Padding = UDim.new(0, 6),
+        Parent = TitleHolder,
+    })
 
-    if Data.Title then
-        Title = New("TextLabel", {
-            BackgroundTransparency = 1,
-            Text = Data.Title,
-            TextSize = 15,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextWrapped = true,
-            Parent = Holder,
-
-            DPIExclude = {
-                Size = true,
-            },
+    if IconAsset then
+        New("ImageLabel", {
+            Image = IconAsset.Url,
+            ImageColor3 = "AccentColor",
+            ImageRectOffset = IconAsset.ImageRectOffset,
+            ImageRectSize = IconAsset.ImageRectSize,
+            Size = UDim2.fromOffset(16, 16),
+            Parent = TitleHolder,
         })
     end
+
+    Title = New("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = TitleText,
+        TextSize = 15,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextWrapped = true,
+        Parent = TitleHolder,
+
+        DPIExclude = {
+            Size = true,
+        },
+    })
+
     if Data.Description then
         Desc = New("TextLabel", {
             BackgroundTransparency = 1,
@@ -3897,15 +3938,16 @@ function Library:Notify(...)
     end
 
     function Data:Resize()
+        local iconOffset = IconAsset and (22 * Library.DPIScale) or 0
         if Title then
             local X, Y = Library:GetTextBounds(
                 Title.Text,
                 Title.FontFace,
                 Title.TextSize,
-                NotificationArea.AbsoluteSize.X - (24 * Library.DPIScale)
+                NotificationArea.AbsoluteSize.X - (24 * Library.DPIScale + iconOffset)
             )
             Title.Size = UDim2.fromOffset(math.ceil(X), Y)
-            TitleX = X
+            TitleX = X + iconOffset
         end
 
         if Desc then
@@ -4044,14 +4086,7 @@ function Library:CreateWindow(WindowInfo)
     local Tabs
     local Container
     do
-        Library.KeybindFrame, Library.KeybindContainer = Library:AddDraggableMenu("Keybinds")
-        Library.KeybindFrame.AnchorPoint = Vector2.new(0, 0.5)
-        Library.KeybindFrame.Position = UDim2.new(0, 6, 0.5, 0)
-        Library.KeybindFrame.Visible = false
-        Library:UpdateDPI(Library.KeybindFrame, {
-            Position = false,
-            Size = false,
-        })
+
 
         -- Use CanvasGroup when available for smooth fade support
         local frameType = "Frame"
@@ -4093,8 +4128,8 @@ function Library:CreateWindow(WindowInfo)
                 },
                 {
                     -- Vertical separator between tabs and content
-                    Position = UDim2.fromScale(0.3, 0),
-                    Size = UDim2.new(0, 1, 1, -21),
+                    Position = UDim2.new(0.3, -1, 0, 48),
+                    Size = UDim2.new(0, 1, 1, -68),
                     Transparency = 0.5,
                 },
                 {
@@ -4552,18 +4587,54 @@ function Library:CreateWindow(WindowInfo)
                     Size = UDim2.new(1, 0, 0, 1),
                 })
 
-                GroupboxLabel = New("TextLabel", {
+                local HeaderHolder = New("Frame", {
                     BackgroundTransparency = 1,
                     Size = UDim2.new(1, 0, 0, 34),
-                    Text = Info.Name,
-                    TextSize = 15,
-                    TextXAlignment = Enum.TextXAlignment.Left,
                     Parent = GroupboxHolder,
+                })
+                New("UIListLayout", {
+                    FillDirection = Enum.FillDirection.Horizontal,
+                    HorizontalAlignment = Enum.HorizontalAlignment.Left,
+                    VerticalAlignment = Enum.VerticalAlignment.Center,
+                    Padding = UDim.new(0, 8),
+                    Parent = HeaderHolder,
                 })
                 New("UIPadding", {
                     PaddingLeft = UDim.new(0, 12),
                     PaddingRight = UDim.new(0, 12),
-                    Parent = GroupboxLabel,
+                    Parent = HeaderHolder,
+                })
+
+                local GroupboxIcon = Info.Icon or (
+                    Info.Name:lower():find("player") and "user" or
+                    Info.Name:lower():find("movement") and "activity" or
+                    Info.Name:lower():find("aim") and "crosshair" or
+                    Info.Name:lower():find("combat") and "shield" or
+                    Info.Name:lower():find("visual") and "eye" or
+                    Info.Name:lower():find("misc") and "package" or
+                    Info.Name:lower():find("settings") and "settings" or
+                    Info.Name:lower():find("config") and "save" or nil
+                )
+                local IconAsset = GroupboxIcon and Library:GetIcon(GroupboxIcon)
+
+                if IconAsset then
+                    New("ImageLabel", {
+                        Image = IconAsset.Url,
+                        ImageColor3 = "AccentColor",
+                        ImageRectOffset = IconAsset.ImageRectOffset,
+                        ImageRectSize = IconAsset.ImageRectSize,
+                        Size = UDim2.fromOffset(16, 16),
+                        Parent = HeaderHolder,
+                    })
+                end
+
+                GroupboxLabel = New("TextLabel", {
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, IconAsset and -24 or 0, 1, 0),
+                    Text = Info.Name,
+                    TextSize = 15,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    Parent = HeaderHolder,
                 })
 
                 GroupboxContainer = New("Frame", {
@@ -4604,12 +4675,12 @@ function Library:CreateWindow(WindowInfo)
             return Groupbox
         end
 
-        function Tab:AddLeftGroupbox(Name)
-            return Tab:AddGroupbox({ Side = 1, Name = Name })
+        function Tab:AddLeftGroupbox(Name, Icon)
+            return Tab:AddGroupbox({ Side = 1, Name = Name, Icon = Icon })
         end
 
-        function Tab:AddRightGroupbox(Name)
-            return Tab:AddGroupbox({ Side = 2, Name = Name })
+        function Tab:AddRightGroupbox(Name, Icon)
+            return Tab:AddGroupbox({ Side = 2, Name = Name, Icon = Icon })
         end
 
         function Tab:AddTabbox(Info)

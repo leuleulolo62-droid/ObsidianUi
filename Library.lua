@@ -96,16 +96,16 @@ local Library = {
 
     IsLightTheme = false,
     Scheme = {
-        BackgroundColor = Color3.fromRGB(10, 16, 31),
-        MainColor = Color3.fromRGB(16, 27, 45),
-        AccentColor = Color3.fromRGB(0, 210, 229),
-        OutlineColor = Color3.fromRGB(0, 59, 77),
-        FontColor = Color3.new(1, 1, 1),
+        BackgroundColor = Color3.fromRGB(12, 14, 23),
+        MainColor = Color3.fromRGB(19, 21, 34),
+        AccentColor = Color3.fromRGB(0, 180, 255),
+        OutlineColor = Color3.fromRGB(32, 36, 54),
+        FontColor = Color3.fromRGB(240, 243, 250),
         Font = Font.fromEnum(Enum.Font.Jura),
 
-        Red = Color3.fromRGB(255, 50, 50),
-        Dark = Color3.new(0, 0, 0),
-        White = Color3.new(1, 1, 1),
+        Red = Color3.fromRGB(255, 60, 80),
+        Dark = Color3.fromRGB(8, 9, 15),
+        White = Color3.fromRGB(255, 255, 255),
     },
 
     Registry = {},
@@ -751,6 +751,39 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
     local FramePos
     local Dragging = false
     local Changed
+
+    local TargetPosition = UI.Position
+    local HeartbeatConn
+
+    local function StartSmoothDrag()
+        if HeartbeatConn then return end
+        HeartbeatConn = RunService.Heartbeat:Connect(function(dt)
+            if not UI or not UI.Parent then
+                HeartbeatConn:Disconnect()
+                HeartbeatConn = nil
+                return
+            end
+
+            local currentX = UI.Position.X.Offset
+            local currentY = UI.Position.Y.Offset
+            local targetX = TargetPosition.X.Offset
+            local targetY = TargetPosition.Y.Offset
+
+            if not Dragging and math.abs(currentX - targetX) < 0.1 and math.abs(currentY - targetY) < 0.1 then
+                UI.Position = TargetPosition
+                HeartbeatConn:Disconnect()
+                HeartbeatConn = nil
+                return
+            end
+
+            local speed = 1 - math.exp(-15 * dt)
+            local nextX = currentX + (targetX - currentX) * speed
+            local nextY = currentY + (targetY - currentY) * speed
+
+            UI.Position = UDim2.new(TargetPosition.X.Scale, nextX, TargetPosition.Y.Scale, nextY)
+        end)
+    end
+
     DragFrame.InputBegan:Connect(function(Input: InputObject)
         if not IsClickInput(Input) or IsMainWindow and Library.CantDragForced then
             return
@@ -759,13 +792,19 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
         StartPos = Input.Position
         FramePos = UI.Position
         Dragging = true
+        TargetPosition = UI.Position
 
         -- Drag visual feedback: subtle fade
         if IsMainWindow then
+            local isCanvasGroup = UI:IsA("CanvasGroup")
+            local prop = isCanvasGroup and "GroupTransparency" or "BackgroundTransparency"
+            local targetVal = isCanvasGroup and 0.25 or 0.18
             TweenService:Create(UI, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                BackgroundTransparency = 0.18,
+                [prop] = targetVal,
             }):Play()
         end
+
+        StartSmoothDrag()
 
         Changed = Input.Changed:Connect(function()
             if Input.UserInputState ~= Enum.UserInputState.End then
@@ -780,12 +819,15 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
 
             -- Restore opacity when released
             if IsMainWindow then
+                local isCanvasGroup = UI:IsA("CanvasGroup")
+                local prop = isCanvasGroup and "GroupTransparency" or "BackgroundTransparency"
                 TweenService:Create(UI, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                    BackgroundTransparency = 0,
+                    [prop] = 0,
                 }):Play()
             end
         end)
     end)
+
     Library:GiveSignal(UserInputService.InputChanged:Connect(function(Input: InputObject)
         if
             (not IgnoreToggled and not Library.Toggled)
@@ -803,8 +845,8 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
 
         if Dragging and IsHoverInput(Input) then
             local Delta = Input.Position - StartPos
-            UI.Position =
-                UDim2.new(FramePos.X.Scale, FramePos.X.Offset + Delta.X, FramePos.Y.Scale, FramePos.Y.Offset + Delta.Y)
+            TargetPosition = UDim2.new(FramePos.X.Scale, FramePos.X.Offset + Delta.X, FramePos.Y.Scale, FramePos.Y.Offset + Delta.Y)
+            StartSmoothDrag()
         end
     end))
 end
@@ -814,6 +856,45 @@ function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: ()
     local FrameSize
     local Dragging = false
     local Changed
+
+    local TargetSize = UI.Size
+    local HeartbeatConn
+
+    local function StartSmoothResize()
+        if HeartbeatConn then return end
+        HeartbeatConn = RunService.Heartbeat:Connect(function(dt)
+            if not UI or not UI.Parent then
+                HeartbeatConn:Disconnect()
+                HeartbeatConn = nil
+                return
+            end
+
+            local currentX = UI.Size.X.Offset
+            local currentY = UI.Size.Y.Offset
+            local targetX = TargetSize.X.Offset
+            local targetY = TargetSize.Y.Offset
+
+            if not Dragging and math.abs(currentX - targetX) < 0.1 and math.abs(currentY - targetY) < 0.1 then
+                UI.Size = TargetSize
+                if Callback then
+                    Library:SafeCallback(Callback)
+                end
+                HeartbeatConn:Disconnect()
+                HeartbeatConn = nil
+                return
+            end
+
+            local speed = 1 - math.exp(-15 * dt)
+            local nextX = currentX + (targetX - currentX) * speed
+            local nextY = currentY + (targetY - currentY) * speed
+
+            UI.Size = UDim2.new(TargetSize.X.Scale, nextX, TargetSize.Y.Scale, nextY)
+            if Callback then
+                Library:SafeCallback(Callback)
+            end
+        end)
+    end
+
     DragFrame.InputBegan:Connect(function(Input: InputObject)
         if not IsClickInput(Input) then
             return
@@ -822,6 +903,17 @@ function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: ()
         StartPos = Input.Position
         FrameSize = UI.Size
         Dragging = true
+        TargetSize = UI.Size
+
+        -- Visual feedback during resize: make it a bit transparent
+        local isCanvasGroup = UI:IsA("CanvasGroup")
+        local prop = isCanvasGroup and "GroupTransparency" or "BackgroundTransparency"
+        local targetVal = isCanvasGroup and 0.25 or 0.18
+        TweenService:Create(UI, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            [prop] = targetVal,
+        }):Play()
+
+        StartSmoothResize()
 
         Changed = Input.Changed:Connect(function()
             if Input.UserInputState ~= Enum.UserInputState.End then
@@ -833,8 +925,16 @@ function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: ()
                 Changed:Disconnect()
                 Changed = nil
             end
+
+            -- Restore opacity
+            local isCanvasGroup = UI:IsA("CanvasGroup")
+            local prop = isCanvasGroup and "GroupTransparency" or "BackgroundTransparency"
+            TweenService:Create(UI, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                [prop] = 0,
+                }):Play()
         end)
     end)
+
     Library:GiveSignal(UserInputService.InputChanged:Connect(function(Input: InputObject)
         if not UI.Visible or not (ScreenGui and ScreenGui.Parent) then
             Dragging = false
@@ -848,15 +948,13 @@ function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: ()
 
         if Dragging and IsHoverInput(Input) then
             local Delta = Input.Position - StartPos
-            UI.Size = UDim2.new(
+            TargetSize = UDim2.new(
                 FrameSize.X.Scale,
                 math.clamp(FrameSize.X.Offset + Delta.X, Library.MinSize.X, math.huge),
                 FrameSize.Y.Scale,
                 math.clamp(FrameSize.Y.Offset + Delta.Y, Library.MinSize.Y, math.huge)
             )
-            if Callback then
-                Library:SafeCallback(Callback)
-            end
+            StartSmoothResize()
         end
     end))
 end
@@ -1200,13 +1298,28 @@ end))
 --// Tooltip \\--
 local TooltipLabel = New("TextLabel", {
     BackgroundColor3 = "BackgroundColor",
-    BorderColor3 = "OutlineColor",
-    BorderSizePixel = 1,
+    BorderSizePixel = 0,
     TextSize = 14,
     TextWrapped = true,
     Visible = false,
     ZIndex = 20,
     Parent = ScreenGui,
+})
+New("UICorner", {
+    CornerRadius = UDim.new(0, 5),
+    Parent = TooltipLabel,
+})
+New("UIStroke", {
+    Color = "OutlineColor",
+    Thickness = 1,
+    Parent = TooltipLabel,
+})
+New("UIPadding", {
+    PaddingBottom = UDim.new(0, 4),
+    PaddingLeft = UDim.new(0, 8),
+    PaddingRight = UDim.new(0, 8),
+    PaddingTop = UDim.new(0, 4),
+    Parent = TooltipLabel,
 })
 TooltipLabel:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
     local X, Y = Library:GetTextBounds(
@@ -1349,12 +1462,20 @@ do
 
         local Picker = New("TextButton", {
             BackgroundColor3 = "MainColor",
-            BorderColor3 = "OutlineColor",
-            BorderSizePixel = 1,
+            BorderSizePixel = 0,
             Size = UDim2.fromOffset(18, 18),
             Text = KeyPicker.Value,
             TextSize = 14,
             Parent = ToggleLabel,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(0, 4),
+            Parent = Picker,
+        })
+        New("UIStroke", {
+            Color = "OutlineColor",
+            Thickness = 1,
+            Parent = Picker,
         })
 
         local KeybindsToggle = {
@@ -1715,11 +1836,19 @@ do
 
         local Holder = New("TextButton", {
             BackgroundColor3 = ColorPicker.Value,
-            BorderColor3 = Library:GetDarkerColor(ColorPicker.Value),
-            BorderSizePixel = 1,
+            BorderSizePixel = 0,
             Size = UDim2.fromOffset(18, 18),
             Text = "",
             Parent = ToggleLabel,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(0, 4),
+            Parent = Holder,
+        })
+        New("UIStroke", {
+            Color = "OutlineColor",
+            Thickness = 1,
+            Parent = Holder,
         })
 
         local HolderTransparency = New("ImageLabel", {
@@ -1729,6 +1858,10 @@ do
             Size = UDim2.fromScale(1, 1),
             TileSize = UDim2.fromOffset(9, 9),
             Parent = Holder,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(0, 4),
+            Parent = HolderTransparency,
         })
 
         --// Color Menu \\--
@@ -1868,24 +2001,40 @@ do
 
         local HueBox = New("TextBox", {
             BackgroundColor3 = "MainColor",
-            BorderColor3 = "OutlineColor",
-            BorderSizePixel = 1,
+            BorderSizePixel = 0,
             ClearTextOnFocus = false,
             Size = UDim2.fromScale(1, 1),
             Text = "#??????",
             TextSize = 14,
             Parent = InfoHolder,
         })
+        New("UICorner", {
+            CornerRadius = UDim.new(0, 6),
+            Parent = HueBox,
+        })
+        New("UIStroke", {
+            Color = "OutlineColor",
+            Thickness = 1,
+            Parent = HueBox,
+        })
 
         local RgbBox = New("TextBox", {
             BackgroundColor3 = "MainColor",
-            BorderColor3 = "OutlineColor",
-            BorderSizePixel = 1,
+            BorderSizePixel = 0,
             ClearTextOnFocus = false,
             Size = UDim2.fromScale(1, 1),
             Text = "?, ?, ?",
             TextSize = 14,
             Parent = InfoHolder,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(0, 6),
+            Parent = RgbBox,
+        })
+        New("UIStroke", {
+            Color = "OutlineColor",
+            Thickness = 1,
+            Parent = RgbBox,
         })
 
         --// Context Menu \\--
@@ -2105,10 +2254,10 @@ do
         local Container = Groupbox.Container
 
         local Holder = New("Frame", {
-            BackgroundColor3 = "MainColor",
-            BorderColor3 = "OutlineColor",
-            BorderSizePixel = 1,
-            Size = UDim2.new(1, 0, 0, 2),
+            BackgroundColor3 = "OutlineColor",
+            BackgroundTransparency = 0.75,
+            BorderSizePixel = 0,
+            Size = UDim2.new(1, 0, 0, 1),
             Parent = Container,
         })
 
@@ -2309,12 +2458,17 @@ do
             local Base = New("TextButton", {
                 Active = not Button.Disabled,
                 BackgroundColor3 = Button.Disabled and "BackgroundColor" or "MainColor",
+                BorderSizePixel = 0,
                 Size = UDim2.fromScale(1, 1),
                 Text = Button.Text,
                 TextSize = 14,
                 TextTransparency = 0.4,
                 Visible = Button.Visible,
                 Parent = Holder,
+            })
+            New("UICorner", {
+                CornerRadius = UDim.new(0, 6),
+                Parent = Base,
             })
 
             local Stroke = New("UIStroke", {
@@ -2993,8 +3147,7 @@ do
         local Box = New("TextBox", {
             AnchorPoint = Vector2.new(0, 1),
             BackgroundColor3 = "MainColor",
-            BorderColor3 = "OutlineColor",
-            BorderSizePixel = 1,
+            BorderSizePixel = 0,
             ClearTextOnFocus = not Input.Disabled and Input.ClearTextOnFocus,
             PlaceholderText = Input.Placeholder,
             Position = UDim2.fromScale(0, 1),
@@ -3004,6 +3157,15 @@ do
             TextScaled = true,
             TextXAlignment = Enum.TextXAlignment.Left,
             Parent = Holder,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(0, 6),
+            Parent = Box,
+        })
+        New("UIStroke", {
+            Color = "OutlineColor",
+            Thickness = 1,
+            Parent = Box,
         })
 
         New("UIPadding", {
@@ -4232,10 +4394,10 @@ function Library:CreateWindow(WindowInfo)
         })
         New("UIGradient", {
             Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(10, 16, 31)),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 59, 77)),
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(12, 14, 23)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(24, 28, 44)),
             }),
-            Rotation = 45,
+            Rotation = 135,
             Parent = MainFrame,
         })
         do
@@ -4245,20 +4407,20 @@ function Library:CreateWindow(WindowInfo)
                     -- Under title bar
                     Position = UDim2.fromOffset(0, 48),
                     Size = UDim2.new(1, 0, 0, 1),
-                    Transparency = 0.5,
+                    Transparency = 0.85,
                 },
                 {
                     -- Vertical separator between tabs and content
                     Position = UDim2.new(0.3, -1, 0, 48),
                     Size = UDim2.new(0, 1, 1, -68),
-                    Transparency = 0.5,
+                    Transparency = 0.85,
                 },
                 {
                     -- Above bottom bar
                     AnchorPoint = Vector2.new(0, 1),
                     Position = UDim2.new(0, 0, 1, -20),
                     Size = UDim2.new(1, 0, 0, 1),
-                    Transparency = 0.5,
+                    Transparency = 0.85,
                 },
             }
             for _, Info in pairs(Lines) do
@@ -4397,6 +4559,15 @@ function Library:CreateWindow(WindowInfo)
         })
 
         New("UIListLayout", {
+            Padding = UDim.new(0, 4),
+            Parent = Tabs,
+        })
+
+        New("UIPadding", {
+            PaddingLeft = UDim.new(0, 8),
+            PaddingRight = UDim.new(0, 8),
+            PaddingTop = UDim.new(0, 8),
+            PaddingBottom = UDim.new(0, 8),
             Parent = Tabs,
         })
 
@@ -4456,6 +4627,10 @@ function Library:CreateWindow(WindowInfo)
                 Size = UDim2.new(1, 0, 0, 40),
                 Text = "",
                 Parent = Tabs,
+            })
+            New("UICorner", {
+                CornerRadius = UDim.new(0, 8),
+                Parent = TabButton,
             })
 
             New("UIPadding", {
@@ -5123,6 +5298,10 @@ function Library:CreateWindow(WindowInfo)
                 Text = "",
                 Parent = Tabs,
             })
+            New("UICorner", {
+                CornerRadius = UDim.new(0, 8),
+                Parent = TabButton,
+            })
             New("UIPadding", {
                 PaddingBottom = UDim.new(0, 11),
                 PaddingLeft = UDim.new(0, 12),
@@ -5204,13 +5383,21 @@ function Library:CreateWindow(WindowInfo)
 
             local Box = New("TextBox", {
                 BackgroundColor3 = "MainColor",
-                BorderColor3 = "OutlineColor",
-                BorderSizePixel = 1,
+                BorderSizePixel = 0,
                 PlaceholderText = "Key",
                 Size = UDim2.new(1, -71, 1, 0),
                 TextSize = 14,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Parent = Holder,
+            })
+            New("UICorner", {
+                CornerRadius = UDim.new(0, 6),
+                Parent = Box,
+            })
+            New("UIStroke", {
+                Color = "OutlineColor",
+                Thickness = 1,
+                Parent = Box,
             })
             New("UIPadding", {
                 PaddingLeft = UDim.new(0, 8),
@@ -5221,13 +5408,21 @@ function Library:CreateWindow(WindowInfo)
             local Button = New("TextButton", {
                 AnchorPoint = Vector2.new(1, 0),
                 BackgroundColor3 = "MainColor",
-                BorderColor3 = "OutlineColor",
-                BorderSizePixel = 1,
+                BorderSizePixel = 0,
                 Position = UDim2.fromScale(1, 0),
                 Size = UDim2.new(0, 63, 1, 0),
                 Text = "Execute",
                 TextSize = 14,
                 Parent = Holder,
+            })
+            New("UICorner", {
+                CornerRadius = UDim.new(0, 6),
+                Parent = Button,
+            })
+            New("UIStroke", {
+                Color = "OutlineColor",
+                Thickness = 1,
+                Parent = Button,
             })
 
             Button.MouseButton1Click:Connect(function()

@@ -3525,9 +3525,14 @@ do
                 return
             end
 
+            -- Play a single clean click when the drag starts
+            Library:PlaySound("6895079853", 0.3)
+
             for _, Side in pairs(Library.ActiveTab.Sides) do
                 Side.ScrollingEnabled = false
             end
+
+            local lastTickTime = 0
 
             while UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1 or Enum.UserInputType.Touch) do
                 local Location = Mouse.X
@@ -3538,7 +3543,12 @@ do
 
                 Slider:Display()
                 if Slider.Value ~= OldValue then
-                    Library:PlaySound("9114227192", 0.1)
+                    -- Debounce: play a subtle soft tick at most every 80ms
+                    local now = tick()
+                    if now - lastTickTime >= 0.08 then
+                        lastTickTime = now
+                        Library:PlaySound("4590662766", 0.18)
+                    end
                     Library:SafeCallback(Slider.Callback, Slider.Value)
                     Library:SafeCallback(Slider.Changed, Slider.Value)
                 end

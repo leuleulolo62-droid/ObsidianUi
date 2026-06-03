@@ -1,94 +1,264 @@
 --[[
-    ObsidianUi - Developer API & Configuration Guide (Aesthetic Customization Edition)
-    
-    This guide documents the API, layouts, features, and styling of the ObsidianUi library.
-    It is designed to serve as clear context for both developers and AI assistants.
+    ObsidianUi - Complete Developer API & Documentation Guide
+    Y2k Script Back2Back | UI Library v2.0
+
+    This file documents every feature, option, and design decision of the ObsidianUi library.
+    It serves as the authoritative reference for developers and AI assistants working on this project.
 
     =====================================================================================
     1. INITIALIZATION & SETUP
     =====================================================================================
-    To load the UI library, theme manager, and save manager, load them from your repository:
-        local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+    Load the UI library and its addons from your repository URL:
+
+        local repo = "https://raw.githubusercontent.com/Y2kScriptBack2Back/ObsidianUi/main/"
+        local Library      = loadstring(game:HttpGet(repo .. "Library.lua"))()
         local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
-        local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+        local SaveManager  = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+    For local testing (Roblox executor):
+        local Library      = loadstring(readfile("Library.lua"))()
+        local ThemeManager = loadstring(readfile("addons/ThemeManager.lua"))()
+        local SaveManager  = loadstring(readfile("addons/SaveManager.lua"))()
 
     =====================================================================================
     2. CREATING A WINDOW
     =====================================================================================
     Library:CreateWindow(WindowInfo) instantiates the main application frame.
-    Parameters in WindowInfo:
-        - Title (string): Main window title. Shown in the top bar.
-        - Footer (string): Text shown in the footer.
-        - NotifySide (string): Position of notifications ("Left" or "Right").
-        - ShowCustomCursor (boolean): Set true to enable custom crosshair cursor tracking.
-        - Center (boolean): Automatically centers the window on the screen upon load.
-        - AutoShow (boolean): Automatically opens the window upon loading.
-        - Resizable (boolean): Enables resizing handle in the bottom-right corner.
-        - CornerRadius (number): Radius of rounded elements (default 10).
+
+    Parameters in WindowInfo (all optional, defaults shown):
+        Title            (string)  = "No Title"     — Window title shown in the top bar.
+        Footer           (string)  = "No Footer"     — Text shown in the footer bar.
+        NotifySide       (string)  = "Right"         — Notification position: "Left" or "Right".
+        ShowCustomCursor (boolean) = true            — Enable the cyan crosshair cursor.
+        Center           (boolean) = true            — Center window on screen at startup.
+        AutoShow         (boolean) = true            — Show the window immediately on load.
+        Resizable        (boolean) = true            — Enable drag-to-resize handle.
+        CornerRadius     (number)  = 10              — Border radius of all UI elements.
+        Size             (UDim2)   = 720x600         — Initial window size.
+        Font             (Enum)    = Jura             — Font used throughout the UI.
+        ToggleKeybind    (Enum)    = RightControl     — Key to show/hide the window.
+
+    Example:
+        local Window = Library:CreateWindow({
+            Title = "My Script",
+            Footer = "by Developer",
+            NotifySide = "Right",
+            ShowCustomCursor = true,
+            Center = true,
+            AutoShow = true,
+            Resizable = true,
+            CornerRadius = 10,
+        })
 
     =====================================================================================
     3. CREATING TABS
     =====================================================================================
-    Window:AddTab(Name, IconName) creates a tab page and a tab selector button.
-        - Name (string): Tab title.
-        - IconName (string): Lucide icon identifier (e.g. "home", "swords", "eye", "settings").
+    Window:AddTab(Name, IconName) creates a tab page and its button in the left sidebar.
+        - Name     (string): Label shown on the tab button.
+        - IconName (string): Lucide icon name. See Section 7 for confirmed working icons.
     Returns a Tab object.
+
+    IMPORTANT - Tab ordering rules:
+        - Tabs are shown in the order they are created.
+        - "Settings" tab is ALWAYS placed second-to-last (LayoutOrder = 99998).
+        - "Credits"  tab is ALWAYS placed last       (LayoutOrder = 99999).
+        - All other tabs appear in creation order.
+
+    Selected tab visuals:
+        - A 3px cyan accent bar appears on the left edge of the selected tab button.
+        - The selected tab has a subtle glass-style background highlight (semi-transparent).
+        - Hovering a non-selected tab shows a faint background glow for feedback.
+        - Tab icon and label fade to full opacity when selected, dimmed when not.
+
+    Example:
+        local Tabs = {
+            Main     = Window:AddTab("Main",     "home"),
+            Combat   = Window:AddTab("Combat",   "swords"),
+            Visuals  = Window:AddTab("Visuals",  "eye"),
+            Misc     = Window:AddTab("Misc",     "package"),
+            Configs  = Window:AddTab("Configs",  "database"),
+            Settings = Window:AddTab("Settings", "settings"),  -- always 2nd to last
+            Credits  = Window:AddTab("Credits",  "info"),       -- always last
+        }
 
     =====================================================================================
     4. CREATING GROUPBOXES
     =====================================================================================
-    Tabs support Left and Right column layout using Groupboxes:
-        local Groupbox = Tab:AddLeftGroupbox(Name, IconName)
-        local Groupbox = Tab:AddRightGroupbox(Name, IconName)
-    If no IconName is specified, it auto-maps keywords (like "Player" -> "user", etc.).
+    Each tab has a LEFT column and a RIGHT column. Use groupboxes to fill them.
+
+        local Left  = Tab:AddLeftGroupbox("Name", "icon-name")
+        local Right = Tab:AddRightGroupbox("Name", "icon-name")
+
+    If no IconName is provided, the library auto-maps common names:
+        "Player"    -> "user"       "Movement"  -> "activity"   "Aim"       -> "crosshair"
+        "Combat"    -> "shield"     "ESP"       -> "eye"        "World"     -> "map"
+        "Fun"       -> "smile"      "Utility"   -> "wrench"     "Interface" -> "monitor"
+        "Misc"      -> "package"    "Config"    -> "database"   "Info"      -> "info"
+        "Credit"    -> "heart"      "Settings"  -> "settings"   "Save"      -> "save"
+        "Theme"     -> "palette"    (anything else -> "package")
+
+    Each groupbox header shows the icon + name with a subtle separator line below it.
     Returns a Groupbox object.
 
-    =====================================================================================
-    5. ADDING UI COMPONENTS TO GROUPBOXES
-    =====================================================================================
-    Groupbox objects support the following method chain interfaces:
-
-    A. Toggles:
-        Groupbox:AddToggle(Index, { Text = "Label", Default = false, Callback = function(state) ... })
-        - Stores toggle state inside the global table `Library.Toggles[Index]`.
-        - Chainable: supports adding keybinds or color pickers, e.g.:
-          `AddToggle(...):AddKeyPicker(Index, ...) :AddColorPicker(Index, ...)`
-
-    B. Sliders (Smooth Tweens):
-        Groupbox:AddSlider(Index, { Text = "Label", Min = 0, Max = 100, Default = 10, Rounding = 0, Suffix = "", Callback = function(val) ... })
-        - Fills the slider track smoothly with a quad out tween animation over 0.08 seconds.
-        - Stores state inside the global table `Library.Options[Index]`.
-
-    C. Dropdowns:
-        Groupbox:AddDropdown(Index, { Text = "Label", Values = { "A", "B" }, Default = "A", Multi = false, Callback = function(selected) ... })
-        - Custom lists supporting single-select or multi-select dropdowns.
-        - Stores option reference in `Library.Options[Index]`.
-
-    D. KeyPickers (Keybinds):
-        Groupbox:AddLabel("Keybind"):AddKeyPicker(Index, { Default = "Q", Mode = "Hold", Text = "Key Label" })
-        - Allows registering keyboard shortcuts.
-        - Binds a visible setting button in the UI next to the label.
-        - Note: The floating keybinds indicator list has been removed, but callbacks and shortcuts remain fully functional.
-
-    E. Buttons:
-        Groupbox:AddButton({ Text = "Click Me", Tooltip = "Optional tip", Func = function() ... })
-        - Compact clickable buttons that trigger immediate actions.
-
-    F. Labels & Dividers:
-        Groupbox:AddLabel("Text Content")
-        Groupbox:AddDivider()
+    Tabboxes (sub-tabs inside a groupbox column):
+        local Tabbox = Tab:AddLeftTabbox()
+        local SubTab = Tabbox:AddTab("Sub Tab Name")
+        SubTab:AddToggle(...)   -- elements go inside the sub-tab
 
     =====================================================================================
-    6. THEME & AUTO-SAVE CONFIGURATION
+    5. ADDING UI COMPONENTS
     =====================================================================================
-    Integrate SaveManager & ThemeManager to manage player settings automatically:
-        ThemeManager:SetLibrary(Library)
-        SaveManager:SetLibrary(Library)
-        ThemeManager:SetFolder("ProjectName")
-        SaveManager:SetFolder("ProjectName/configs")
-        ThemeManager:ApplyToTab(Tab)         -- Adds theme control section
-        SaveManager:BuildConfigSection(Tab)  -- Adds configuration save/load section
-        SaveManager:LoadAutoloadConfig()     -- Restores player's saved auto-load config
+
+    -- A. TOGGLE --
+    Groupbox:AddToggle(Index, {
+        Text     = "Label",           -- (string)  displayed name
+        Default  = false,             -- (boolean) initial state
+        Tooltip  = "Hint text",       -- (string)  shown on hover
+        Risky    = false,             -- (boolean) renders text in red if true
+        Disabled = false,             -- (boolean) grays out the toggle
+        Callback = function(val) end, -- fires when state changes
+    })
+    Access: Library.Toggles["Index"].Value
+    Chain:  :AddKeyPicker(...)  :AddColorPicker(...)
+
+    -- B. SLIDER (Smooth Tweens) --
+    Groupbox:AddSlider(Index, {
+        Text     = "Label",
+        Default  = 50,   Min = 0,   Max = 100,
+        Rounding = 0,               -- decimal places (0 = integer)
+        Suffix   = " px",           -- appended to displayed value
+        Prefix   = "",              -- prepended to displayed value
+        Callback = function(val) end,
+    })
+    Fill bar tweens smoothly (0.08s Quad Out). Access: Library.Options["Index"].Value
+
+    -- C. DROPDOWN --
+    Groupbox:AddDropdown(Index, {
+        Text    = "Label",
+        Values  = { "Option A", "Option B" },
+        Default = "Option A",       -- or { "A", "B" } for multi-select
+        Multi   = false,            -- true = multi-select checkboxes
+        Callback = function(val) end,
+    })
+    Access: Library.Options["Index"].Value
+
+    -- D. BUTTON --
+    Groupbox:AddButton({
+        Text        = "Click Me",
+        Tooltip     = "Hint",
+        Risky       = false,        -- text in red if true
+        DoubleClick = false,        -- requires second click to confirm
+        Func        = function() end,
+    })
+    Sub-button: Groupbox:AddButton({ ... }):AddButton({ Text = "Also", Func = ... })
+
+    -- E. LABEL & DIVIDER --
+    Groupbox:AddLabel("Static text")
+    Groupbox:AddLabel({ Text = "Wrap text", DoesWrap = true, Size = 14 })
+    Groupbox:AddDivider()
+
+    -- F. INPUT BOX --
+    Groupbox:AddInput(Index, {
+        Text = "Label",  Default = "",  Placeholder = "Type here...",
+        Numeric = false,  Finished = false,  Callback = function(val) end,
+    })
+
+    -- G. COLOR PICKER --
+    Groupbox:AddLabel("Color"):AddColorPicker(Index, {
+        Default = Color3.fromRGB(0, 210, 229),  Title = "Picker Title",
+        Transparency = 0,   Callback = function(color) end,
+    })
+
+    -- H. KEYBIND (KEY PICKER) --
+    Groupbox:AddLabel("Action"):AddKeyPicker(Index, {
+        Default = "Q",              -- key name string or "None"
+        Mode    = "Toggle",         -- "Toggle", "Hold", or "Always"
+        Text    = "Display label",
+        Callback = function(state) end,
+    })
+    Note: The floating keybind panel is removed. Binds still work via InputBegan.
+
+    =====================================================================================
+    6. NOTIFICATIONS
+    =====================================================================================
+    Library:Notify({ Title = "...", Description = "...", Time = 5 })
+    Library:Notify("Simple message")          -- string form, 5s default
+    Library:Notify("Message", seconds, soundId)
+
+    Icon and accent stripe color are auto-detected from Title + Description keywords:
+
+        Keyword                   | Icon   | Accent color
+        --------------------------+--------+-----------------------------
+        success/done/loaded/complet| check | Green  RGB(50, 210, 120)
+        error/fail/warn/alert      | x     | Red    RGB(255, 80,  80)
+        (default)                  | info  | Cyan   AccentColor
+
+    Each notification has a 3px colored left stripe + matching icon color.
+    Update while visible:
+        local N = Library:Notify({ Title = "Loading...", Time = 30 })
+        N:ChangeTitle("Done!")
+        N:ChangeDescription("Completed.")
+
+    =====================================================================================
+    7. ICONS REFERENCE (Lucide for Roblox)
+    =====================================================================================
+    Usage: Window:AddTab("Name", "icon-name")
+           Tab:AddLeftGroupbox("Name", "icon-name")
+
+    CONFIRMED WORKING:
+        "home"  "settings"  "info"   "package"  "database"  "eye"
+        "swords" "key"  "user"  "activity"  "crosshair"  "shield"
+        "map"  "smile"  "wrench"  "monitor"  "palette"  "save"
+        "heart"  "check"  "chevron-up"  "move-diagonal-2"
+
+    AVOID (do not exist in this Lucide version):
+        "bell"           -> use "info"    "circle-check"   -> use "check"
+        "triangle-alert" -> use "x"       "alert-triangle" -> use "x"
+        "globe"          -> use "map"     "scan"           -> use "eye"
+        "face-smile"     -> use "smile"   "tool"           -> use "wrench"
+
+    Browse all names at: https://lucide.dev/icons/ (use exact kebab-case name)
+
+    =====================================================================================
+    8. AESTHETIC FEATURES
+    =====================================================================================
+    Window: diagonal gradient (navy → teal, 45°), separator lines, rounded corners.
+    Tabs:   selected tab shows 3px cyan indicator bar + subtle glass highlight.
+            hover shows faint glow; all transitions are tweened (0.1s Quad Out).
+    Logo:   36×36px, 8px rounded corners, cyan UIStroke outline.
+    Sliders: fill animates via TweenService (0.08s Quad Out).
+    Cursor: custom crosshair; color via Library:SetCursorColor(Color3.fromRGB(...))
+    Drag:   window fades to 18% transparency while dragged, restores on release.
+    Notifications: slide in from screen edge; colored stripe + icon per type.
+
+    =====================================================================================
+    9. THEME & AUTO-SAVE CONFIGURATION
+    =====================================================================================
+    ThemeManager:SetLibrary(Library)
+    SaveManager:SetLibrary(Library)
+    ThemeManager:SetFolder("ProjectName")
+    SaveManager:SetFolder("ProjectName/configs")
+    ThemeManager:ApplyToTab(Tabs.Settings)       -- adds theme picker to Settings tab
+    SaveManager:BuildConfigSection(Tabs.Configs) -- adds config UI to Configs tab
+    SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+    SaveManager:IgnoreThemeSettings()
+    SaveManager:LoadAutoloadConfig()             -- restore auto-load on start
+
+    =====================================================================================
+    10. MISC UTILITIES
+    =====================================================================================
+    Library.ToggleKeybind = Options.MenuKeybind  -- bind toggle to a KeyPicker
+    Library:SetNotifySide("Left" or "Right")
+    Library:SetDPIScale(100)                     -- 75, 100, 125, or 150
+    Library:Unload()                             -- destroy UI + disconnect signals
+
+    Color scheme:
+        Library.Scheme.BackgroundColor  -- deep dark navy (main bg)
+        Library.Scheme.MainColor        -- lighter navy (panels, buttons)
+        Library.Scheme.AccentColor      -- cyan RGB(0,210,229)
+        Library.Scheme.OutlineColor     -- teal RGB(0,59,77)
+        Library.Scheme.FontColor        -- white (all text)
+    After changes: Library:UpdateColorsUsingRegistry()
 ]]
 
 local repo = "https://raw.githubusercontent.com/Y2kScriptBack2Back/ObsidianUi/main/"
@@ -134,8 +304,8 @@ local Tabs = {
 -- ─────────────────────────────────────────────
 --  MAIN TAB
 -- ─────────────────────────────────────────────
-local MainLeft  = Tabs.Main:AddLeftGroupbox("Player")
-local MainRight = Tabs.Main:AddRightGroupbox("Movement")
+local MainLeft  = Tabs.Main:AddLeftGroupbox("Player",   "user")
+local MainRight = Tabs.Main:AddRightGroupbox("Movement", "activity")
 
 MainLeft:AddToggle("GodMode", {
     Text    = "God Mode",
@@ -233,8 +403,8 @@ MainRight:AddSlider("FlySpeed", {
 -- ─────────────────────────────────────────────
 --  COMBAT TAB
 -- ─────────────────────────────────────────────
-local CombatLeft  = Tabs.Combat:AddLeftGroupbox("Aim")
-local CombatRight = Tabs.Combat:AddRightGroupbox("Misc")
+local CombatLeft  = Tabs.Combat:AddLeftGroupbox("Aim",  "crosshair")
+local CombatRight = Tabs.Combat:AddRightGroupbox("Misc", "shield")
 
 CombatLeft:AddToggle("AimLock", {
     Text    = "Aim Lock",
@@ -302,8 +472,8 @@ CombatRight:AddSlider("FOV", {
 -- ─────────────────────────────────────────────
 --  VISUALS TAB
 -- ─────────────────────────────────────────────
-local VisualLeft  = Tabs.Visual:AddLeftGroupbox("ESP")
-local VisualRight = Tabs.Visual:AddRightGroupbox("World")
+local VisualLeft  = Tabs.Visual:AddLeftGroupbox("ESP",   "eye")
+local VisualRight = Tabs.Visual:AddRightGroupbox("World", "map")
 
 VisualLeft:AddToggle("PlayerESP", {
     Text    = "Player ESP",
@@ -367,8 +537,8 @@ VisualRight:AddToggle("NoFog", {
 -- ─────────────────────────────────────────────
 --  MISC TAB
 -- ─────────────────────────────────────────────
-local MiscLeft  = Tabs.Misc:AddLeftGroupbox("Fun")
-local MiscRight = Tabs.Misc:AddRightGroupbox("Utility")
+local MiscLeft  = Tabs.Misc:AddLeftGroupbox("Fun",     "smile")
+local MiscRight = Tabs.Misc:AddRightGroupbox("Utility", "wrench")
 
 MiscLeft:AddButton({
     Text = "Spin Bot",
@@ -390,7 +560,7 @@ MiscRight:AddToggle("InfJump", {
 -- ─────────────────────────────────────────────
 --  CREDITS TAB
 -- ─────────────────────────────────────────────
-local CreditsLeft = Tabs.Credits:AddLeftGroupbox("Information")
+local CreditsLeft = Tabs.Credits:AddLeftGroupbox("Information", "info")
 CreditsLeft:AddLabel("Developer: Melio")
 CreditsLeft:AddLabel("UI Designer: Antigravity")
 CreditsLeft:AddLabel("Version: 2.0.0")
@@ -399,7 +569,7 @@ CreditsLeft:AddLabel("Theme: Deep Ocean Cyan Gradient")
 -- ─────────────────────────────────────────────
 --  SETTINGS TAB
 -- ─────────────────────────────────────────────
-local MenuGroup = Tabs.Settings:AddLeftGroupbox("Interface")
+local MenuGroup = Tabs.Settings:AddLeftGroupbox("Interface", "monitor")
 
 MenuGroup:AddButton({
     Text = "Test Notification (Success)",

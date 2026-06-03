@@ -101,7 +101,7 @@ local Library = {
         AccentColor = Color3.fromRGB(0, 210, 229),
         OutlineColor = Color3.fromRGB(0, 59, 77),
         FontColor = Color3.new(1, 1, 1),
-        Font = Font.fromEnum(Enum.Font.Gotham),
+        Font = Font.fromEnum(Enum.Font.Jura),
 
         Red = Color3.fromRGB(255, 50, 50),
         Dark = Color3.new(0, 0, 0),
@@ -187,7 +187,7 @@ local Templates = {
         CornerRadius = 10,
         NotifySide = "Right",
         ShowCustomCursor = true,
-        Font = Enum.Font.Gotham,
+        Font = Enum.Font.Jura,
         ToggleKeybind = Enum.KeyCode.RightControl,
         MobileButtonsSide = "Left",
     },
@@ -1030,8 +1030,7 @@ function Library:AddContextMenu(
             AutomaticCanvasSize = List == 2 and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
             AutomaticSize = List == 1 and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
             BackgroundColor3 = "BackgroundColor",
-            BorderColor3 = "OutlineColor",
-            BorderSizePixel = 1,
+            BorderSizePixel = 0,
             BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
             CanvasSize = UDim2.fromOffset(0, 0),
             ScrollBarImageColor3 = "OutlineColor",
@@ -1046,11 +1045,26 @@ function Library:AddContextMenu(
                 Position = true,
             },
         })
+        New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius - 2),
+            Parent = Menu,
+        })
+        New("UIStroke", {
+            Color = "OutlineColor",
+            Thickness = 1,
+            Parent = Menu,
+        })
+        New("UIPadding", {
+            PaddingBottom = UDim.new(0, 4),
+            PaddingLeft = UDim.new(0, 4),
+            PaddingRight = UDim.new(0, 4),
+            PaddingTop = UDim.new(0, 4),
+            Parent = Menu,
+        })
     else
         Menu = New("Frame", {
             BackgroundColor3 = "BackgroundColor",
-            BorderColor3 = "OutlineColor",
-            BorderSizePixel = 1,
+            BorderSizePixel = 0,
             Size = typeof(Size) == "function" and Size() or Size,
             Visible = false,
             ZIndex = 10,
@@ -1059,6 +1073,15 @@ function Library:AddContextMenu(
             DPIExclude = {
                 Position = true,
             },
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(0, Library.CornerRadius - 2),
+            Parent = Menu,
+        })
+        New("UIStroke", {
+            Color = "OutlineColor",
+            Thickness = 1,
+            Parent = Menu,
         })
     end
 
@@ -3132,31 +3155,25 @@ do
             Active = not Slider.Disabled,
             AnchorPoint = Vector2.new(0, 1),
             BackgroundColor3 = "MainColor",
-            BorderColor3 = "OutlineColor",
-            BorderSizePixel = 1,
+            BorderSizePixel = 0,
             Position = UDim2.fromScale(0, 1),
-            Size = UDim2.new(1, 0, 0, 13),
+            Size = UDim2.new(1, 0, 0, 8),
             Text = "",
             Parent = Holder,
         })
-
-        local DisplayLabel = New("TextLabel", {
-            BackgroundTransparency = 1,
-            Size = UDim2.fromScale(1, 1),
-            Text = "",
-            TextSize = 14,
-            ZIndex = 2,
+        New("UICorner", {
+            CornerRadius = UDim.new(1, 0),
             Parent = Bar,
         })
         New("UIStroke", {
-            ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
-            Color = "Dark",
-            LineJoinMode = Enum.LineJoinMode.Miter,
-            Parent = DisplayLabel,
+            Color = "OutlineColor",
+            Thickness = 1,
+            Parent = Bar,
         })
 
         local Fill = New("Frame", {
             BackgroundColor3 = "AccentColor",
+            BorderSizePixel = 0,
             Size = UDim2.fromScale(0.5, 1),
             Parent = Bar,
 
@@ -3164,6 +3181,45 @@ do
                 Size = true,
             },
         })
+        New("UICorner", {
+            CornerRadius = UDim.new(1, 0),
+            Parent = Fill,
+        })
+
+        local Knob = New("Frame", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = "AccentColor",
+            BorderSizePixel = 0,
+            Position = UDim2.new(1, 0, 0.5, 0),
+            Size = UDim2.fromOffset(14, 14),
+            ZIndex = 3,
+            Parent = Fill,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(1, 0),
+            Parent = Knob,
+        })
+        New("UIStroke", {
+            Color = "FontColor",
+            Thickness = 1.5,
+            Parent = Knob,
+        })
+
+        local DisplayLabel = New("TextLabel", {
+            BackgroundTransparency = 1,
+            Text = "",
+            TextSize = 14,
+            ZIndex = 2,
+            Parent = Info.Compact and Bar or Holder,
+        })
+        if Info.Compact then
+            DisplayLabel.Size = UDim2.fromScale(1, 1)
+        else
+            DisplayLabel.AnchorPoint = Vector2.new(1, 0)
+            DisplayLabel.Position = UDim2.fromScale(1, 0)
+            DisplayLabel.Size = UDim2.new(0.5, 0, 0, 14)
+            DisplayLabel.TextXAlignment = Enum.TextXAlignment.Right
+        end
 
         function Slider:UpdateColors()
             if Library.Unloaded then
@@ -3175,8 +3231,12 @@ do
             end
             DisplayLabel.TextTransparency = Slider.Disabled and 0.8 or 0
 
-            Fill.BackgroundColor3 = Slider.Disabled and Library.Scheme.OutlineColor or Library.Scheme.AccentColor
+            local fillCol = Slider.Disabled and Library.Scheme.OutlineColor or Library.Scheme.AccentColor
+            Fill.BackgroundColor3 = fillCol
             Library.Registry[Fill].BackgroundColor3 = Slider.Disabled and "OutlineColor" or "AccentColor"
+
+            Knob.BackgroundColor3 = fillCol
+            Library.Registry[Knob].BackgroundColor3 = Slider.Disabled and "OutlineColor" or "AccentColor"
         end
 
         function Slider:Display()
@@ -3398,14 +3458,22 @@ do
             Active = not Dropdown.Disabled,
             AnchorPoint = Vector2.new(0, 1),
             BackgroundColor3 = "MainColor",
-            BorderColor3 = "OutlineColor",
-            BorderSizePixel = 1,
+            BorderSizePixel = 0,
             Position = UDim2.fromScale(0, 1),
             Size = UDim2.new(1, 0, 0, 21),
             Text = "---",
             TextSize = 14,
             TextXAlignment = Enum.TextXAlignment.Left,
             Parent = Holder,
+        })
+        New("UICorner", {
+            CornerRadius = UDim.new(0, WindowInfo.CornerRadius - 2),
+            Parent = Display,
+        })
+        New("UIStroke", {
+            Color = "OutlineColor",
+            Thickness = 1,
+            Parent = Display,
         })
 
         New("UIPadding", {
@@ -3570,6 +3638,10 @@ do
                     TextTransparency = 0.5,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Parent = MenuTable.Menu,
+                })
+                New("UICorner", {
+                    CornerRadius = UDim.new(0, 4),
+                    Parent = Button,
                 })
                 New("UIPadding", {
                     PaddingLeft = UDim.new(0, 7),
@@ -3842,24 +3914,28 @@ function Library:Notify(...)
         },
     })
 
-    local Background = Library:MakeOutline(FakeBackground, Library.CornerRadius, 5)
-    Background.AutomaticSize = Enum.AutomaticSize.Y
-    Background.Position = Library.NotifySide:lower() == "left" and UDim2.new(-1, -6, 0, -2) or UDim2.new(1, 6, 0, -2)
-    Background.Size = UDim2.fromScale(1, 0)
+    local Background = New("Frame", {
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = "MainColor",
+        BorderSizePixel = 0,
+        Position = Library.NotifySide:lower() == "left" and UDim2.new(-1, -6, 0, -2) or UDim2.new(1, 6, 0, -2),
+        Size = UDim2.fromScale(1, 0),
+        ZIndex = 5,
+        Parent = FakeBackground,
+    })
+    New("UICorner", {
+        CornerRadius = UDim.new(0, Library.CornerRadius),
+        Parent = Background,
+    })
     Library:UpdateDPI(Background, {
         Position = false,
         Size = false,
     })
 
     local Holder = New("Frame", {
-        BackgroundColor3 = "MainColor",
-        Position = UDim2.fromOffset(2, 2),
-        Size = UDim2.new(1, -4, 1, -4),
+        BackgroundTransparency = 1,
+        Size = UDim2.fromScale(1, 1),
         Parent = Background,
-    })
-    New("UICorner", {
-        CornerRadius = UDim.new(0, Library.CornerRadius - 1),
-        Parent = Holder,
     })
     New("UIListLayout", {
         Padding = UDim.new(0, 4),
@@ -3867,33 +3943,46 @@ function Library:Notify(...)
     })
     New("UIPadding", {
         PaddingBottom = UDim.new(0, 8),
-        PaddingLeft = UDim.new(0, 8),
+        PaddingLeft = UDim.new(0, 12),
         PaddingRight = UDim.new(0, 8),
         PaddingTop = UDim.new(0, 8),
         Parent = Holder,
     })
 
     local TitleText = Data.Title or "Notification"
-    local IconName = "bell"
     local textLower = (TitleText .. " " .. (Data.Description or "")):lower()
-    if textLower:find("success") or textLower:find("done") or textLower:find("loaded") then
-        IconName = "circle-check"
+    local IconName = "info"  -- safe default
+    if textLower:find("success") or textLower:find("done") or textLower:find("loaded") or textLower:find("complet") then
+        IconName = "check"
     elseif textLower:find("error") or textLower:find("fail") or textLower:find("warn") or textLower:find("alert") then
-        IconName = "triangle-alert"
-    elseif textLower:find("info") or textLower:find("hint") then
-        IconName = "info"
+        IconName = "x"
     end
     local IconAsset = Library:GetIcon(IconName)
     if not IconAsset then
-        -- Fallback to older Lucide v3 names or basic names
-        if IconName == "circle-check" then
-            IconAsset = Library:GetIcon("check-circle") or Library:GetIcon("check")
-        elseif IconName == "triangle-alert" then
-            IconAsset = Library:GetIcon("alert-triangle") or Library:GetIcon("alert-circle") or Library:GetIcon("circle-alert")
+        if IconName == "check" then
+            IconAsset = Library:GetIcon("check-circle") or Library:GetIcon("circle-check") or Library:GetIcon("check-square")
+        elseif IconName == "x" then
+            IconAsset = Library:GetIcon("x-circle") or Library:GetIcon("circle-x") or Library:GetIcon("alert-circle") or Library:GetIcon("circle-alert") or Library:GetIcon("alert-triangle") or Library:GetIcon("triangle-alert")
         end
     end
     if not IconAsset then
-        IconAsset = Library:GetIcon("bell") or Library:GetIcon("info") or Library:GetIcon("package")
+        IconAsset = Library:GetIcon("info")
+    end
+
+    local ImageId, ImageRectOffset, ImageRectSize
+    if IconAsset then
+        ImageId = IconAsset.Url
+        ImageRectOffset = IconAsset.ImageRectOffset
+        ImageRectSize = IconAsset.ImageRectSize
+    else
+        -- Fallback to high-resolution, universal, standard Roblox asset IDs
+        if IconName == "check" then
+            ImageId = "rbxassetid://10709772922"
+        elseif IconName == "x" then
+            ImageId = "rbxassetid://10709794271"
+        else
+            ImageId = "rbxassetid://10709819149"
+        end
     end
 
     -- Colored left accent stripe (success=green, error=red, info/default=cyan)
@@ -3906,13 +3995,13 @@ function Library:Notify(...)
     local NotifAccentBar = New("Frame", {
         BackgroundColor3 = notifAccentColor,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(2, 2),
-        Size = UDim2.new(0, 3, 1, -4),
+        Position = UDim2.fromOffset(0, 0),
+        Size = UDim2.new(0, 3, 1, 0),
         ZIndex = 6,
         Parent = Background,
     })
     New("UICorner", {
-        CornerRadius = UDim.new(0, Library.CornerRadius - 1),
+        CornerRadius = UDim.new(0, Library.CornerRadius),
         Parent = NotifAccentBar,
     })
 
@@ -3929,12 +4018,12 @@ function Library:Notify(...)
         Parent = TitleHolder,
     })
 
-    if IconAsset then
+    if ImageId then
         New("ImageLabel", {
-            Image = IconAsset.Url,
-            ImageColor3 = "AccentColor",
-            ImageRectOffset = IconAsset.ImageRectOffset,
-            ImageRectSize = IconAsset.ImageRectSize,
+            Image = ImageId,
+            ImageColor3 = notifAccentColor,
+            ImageRectOffset = ImageRectOffset,
+            ImageRectSize = ImageRectSize,
             Size = UDim2.fromOffset(16, 16),
             Parent = TitleHolder,
         })
@@ -4225,12 +4314,7 @@ function Library:CreateWindow(WindowInfo)
             CornerRadius = UDim.new(0, 8),
             Parent = LogoLabel,
         })
-        New("UIStroke", {
-            Color = "AccentColor",
-            Thickness = 1.5,
-            ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-            Parent = LogoLabel,
-        })
+
 
         local TitleFontSize = Library.IsMobile and 22 or 18
         New("TextLabel", {

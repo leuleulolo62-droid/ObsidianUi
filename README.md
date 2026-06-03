@@ -52,7 +52,48 @@ local Window = Library:CreateWindow({
 
 ## Icon Information
 
-The Obsidian UI Library uses [Lucide](https://lucide.dev/) for Tab Icons and more.
+The Obsidian UI Library integrates [Lucide](https://lucide.dev/) icons for Tabs, Groupboxes, and Notifications.
+
+### Automatic Icon Mapping
+If you do not specify an icon when creating a tab or a groupbox, the library automatically resolves an appropriate icon based on the name (case-insensitive substring match):
+
+| Groupbox / Tab Name Keyword | Resolved Icon Name | Lucide Icon |
+| :--- | :--- | :--- |
+| `player` | `"user"` | User silhouette |
+| `movement` | `"activity"` | Heartbeat line |
+| `aim` | `"crosshair"` | Crosshair target |
+| `combat` | `"shield"` | Defense shield |
+| `visual` | `"eye"` | Eye |
+| `esp` | `"scan"` (fallback: `"eye"`) | Scanner / Eye |
+| `world` | `"globe"` (fallback: `"map"`) | Map globe / Map |
+| `fun` | `"smile"` | Smiley face |
+| `utility` | `"wrench"` (fallback: `"tool"` / `"settings"`) | Wrench |
+| `interface` | `"monitor"` | Computer screen |
+| `theme` | `"palette"` | Color palette |
+| `save` | `"save"` | Floppy disk |
+| `misc` | `"package"` | Delivery box |
+| `settings` | `"settings"` | Gear |
+| `config` | `"database"` (fallback: `"save"` / `"folder"`) | Database stack |
+| `info` | `"info"` | Info letter i |
+| `credit` | `"heart"` | Heart shape |
+| (Default) | `"package"` | Delivery box |
+
+### Confirmed Working Icons List
+The internal Lucide sprite sheet contains these verified icon names:
+- `"home"`, `"settings"`, `"info"`, `"package"`, `"database"`, `"eye"`
+- `"swords"`, `"key"`, `"user"`, `"activity"`, `"crosshair"`, `"shield"`
+- `"map"`, `"smile"`, `"wrench"`, `"monitor"`, `"palette"`, `"save"`
+- `"heart"`, `"check"`, `"chevron-up"`, `"move-diagonal-2"`
+
+### Icons to Avoid
+These icons are **not present** in the library's custom sprite sheet and will fall back to default or empty icons:
+- ❌ `"bell"` (Use `"info"` instead)
+- ❌ `"circle-check"`, `"check-circle"` (Use `"check"` instead)
+- ❌ `"triangle-alert"`, `"alert-triangle"`, `"circle-alert"`, `"alert-circle"` (Use `"x"` instead)
+- ❌ `"globe"` (Use `"map"` instead)
+- ❌ `"scan"` (Use `"eye"` instead)
+- ❌ `"tool"` (Use `"wrench"` instead)
+
 
 ## Core Components
 
@@ -534,42 +575,63 @@ Groupbox:AddDivider()
 
 ### Notifications
 
-Notifications display temporary messages to the user.
+Notifications display temporary slide-in messages to the user.
 
 ```lua
--- Simple notification
-Library:Notify("This is a notification", 5) -- Second param is duration in seconds
+-- Simple notification (duration defaults to 5 seconds)
+Library:Notify("This is a notification")
 
--- Advanced notification
+-- Simple notification with custom duration and optional sound
+Library:Notify("Custom Duration Notification", 10, 123456789)
+
+-- Advanced notification using a config table
 Library:Notify({
-    Title = "Success",
-    Description = "Operation completed successfully",
-    Time = 5, -- Duration in seconds
-    SoundId = 123456789 -- Optional sound ID
+    Title = "Success Alert",
+    Description = "Operation completed successfully!",
+    Time = 5,
+    SoundId = 123456789
+})
+```
+
+#### Automatic Icon & Accent Customization
+The notification system automatically detects the type of notification from keywords in the **Title** and **Description** (case-insensitive) to set the appropriate icon and 3px left stripe color:
+
+| Notification Type | Matching Keywords | Resolved Icon | Accent Stripe & Icon Color |
+| :--- | :--- | :--- | :--- |
+| **Success** | `success`, `done`, `loaded`, `complet` | `"check"` | 🟢 Green `Color3.fromRGB(50, 210, 120)` |
+| **Error / Warning** | `error`, `fail`, `warn`, `alert` | `"x"` | 🔴 Red `Color3.fromRGB(255, 80, 80)` |
+| **Default / Info** | *(None)* | `"info"` | 🔵 Accent Color (default: Cyan) |
+
+#### Updating Active Notifications
+You can capture the returned notification object to update its title or description dynamically while it is still on-screen:
+
+```lua
+local Notification = Library:Notify({
+    Title = "Downloading...",
+    Description = "Starting download...",
+    Time = 15
 })
 
--- Getting notification object for manipulation
-local Notification = Library:Notify({
-    Title = "Progress",
-    Description = "Processing...",
+task.wait(2)
+Notification:ChangeTitle("Unpacking...")
+Notification:ChangeDescription("Extracting game assets...")
+```
+
+#### Step Notifications
+For processes with multiple stages, specify `Steps` in the configuration table:
+
+```lua
+local StepNotification = Library:Notify({
+    Title = "Verification Flow",
+    Description = "Checking keys...",
+    Steps = 3,
     Time = 10
 })
 
--- Update notification text
-Notification:ChangeTitle("Almost done")
-Notification:ChangeDescription("Finalizing...")
-
--- For step notifications
-local StepNotification = Library:Notify({
-    Title = "Progress",
-    Description = "Downloading files...",
-    Steps = 5, -- Total number of steps
-    Time = someInstanceThatFires -- or use a number for time-based
-})
-
--- Update steps
-StepNotification:ChangeStep(2) -- Set to step 2 of 5
+task.wait(1)
+StepNotification:ChangeStep(2) -- updates subtitle to: "Checking keys... (2/3)"
 ```
+
 
 ### Tooltips
 
@@ -634,11 +696,11 @@ Library.Scheme = {
     AccentColor = Color3.fromRGB(125, 85, 255),
     OutlineColor = Color3.fromRGB(40, 40, 40),
     FontColor = Color3.new(1, 1, 1),
-    Font = Font.fromEnum(Enum.Font.Gotham),
+    Font = Font.fromEnum(Enum.Font.Jura),
 }
 
 -- Change font
-Library:SetFont(Enum.Font.Gotham)
+Library:SetFont(Enum.Font.Jura)
 
 -- Change DPI scale
 Library:SetDPIScale(150) -- 150% scaling

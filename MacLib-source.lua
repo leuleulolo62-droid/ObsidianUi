@@ -45,19 +45,35 @@ local assets = {
 	sliderhead = "rbxassetid://18772834246",
 }
 
--- Y2k logo (kept): download from your GitHub once, cache locally, fall back to URL
-local Y2K_LOGO_URL = "https://raw.githubusercontent.com/Y2kScriptBack2Back/Y2k-Script-Back2Back/main/wp14229113.jpg"
+-- Y2k logo: hosted as PNG on your worker (Roblox can't render .webp). Downloaded
+-- once and cached locally; falls back to the URL if the executor has no filesystem.
+local Y2K_LOGO_URL = "https://y2k-keys.y2kscript.workers.dev/asset?name=logo"
 local _y2kLogoAsset
 local function GetLogoImage()
 	if _y2kLogoAsset then return _y2kLogoAsset end
 	if writefile and getcustomasset and isfile then
 		pcall(function()
-			if not isfile("y2k_logo.jpg") then writefile("y2k_logo.jpg", game:HttpGet(Y2K_LOGO_URL)) end
-			_y2kLogoAsset = getcustomasset("y2k_logo.jpg")
+			if not isfile("y2k_logo.png") then writefile("y2k_logo.png", game:HttpGet(Y2K_LOGO_URL)) end
+			_y2kLogoAsset = getcustomasset("y2k_logo.png")
 		end)
 		if _y2kLogoAsset then return _y2kLogoAsset end
 	end
 	return Y2K_LOGO_URL
+end
+
+-- Generic icon loader (close/minimize/chevron/resize PNGs hosted on the worker).
+local _y2kIcons = {}
+local function GetY2kIcon(name)
+	if _y2kIcons[name] then return _y2kIcons[name] end
+	local url, fn = "https://y2k-keys.y2kscript.workers.dev/asset?name=" .. name, "y2k_" .. name .. "_v2.png"
+	if writefile and getcustomasset and isfile then
+		pcall(function()
+			if not isfile(fn) then writefile(fn, game:HttpGet(url)) end
+			_y2kIcons[name] = getcustomasset(fn)
+		end)
+		if _y2kIcons[name] then return _y2kIcons[name] end
+	end
+	return url
 end
 
 --// Functions
@@ -121,7 +137,7 @@ function MacLib:Window(Settings)
 	local base = Instance.new("Frame")
 	base.Name = "Base"
 	base.AnchorPoint = Vector2.new(0.5, 0.5)
-	base.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+	base.BackgroundColor3 = Color3.fromRGB(9, 9, 11)
 	base.BackgroundTransparency = Settings.AcrylicBlur and 0.05 or 0
 	base.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	base.BorderSizePixel = 0
@@ -324,6 +340,11 @@ function MacLib:Window(Settings)
 
 	windowControls.Parent = sidebar
 
+	-- ===== Y2k: hide the sidebar dots + line; close/minimize move to the top bar =====
+	divider1.BackgroundTransparency = 1
+	maximize.Visible = false
+	windowControls.Visible = false  -- replaced by lucide icons in the top-right of the top bar
+
 	local information = Instance.new("Frame")
 	information.Name = "Information"
 	information.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -398,17 +419,17 @@ function MacLib:Window(Settings)
 	titleFrame.BackgroundTransparency = 1
 	titleFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	titleFrame.BorderSizePixel = 0
-	titleFrame.Size = UDim2.fromScale(1, 1)
+	titleFrame.Size = UDim2.new(1, -28, 1, 0)  -- reserve room for the settings globe so the title truly centers
 
 	-- Y2k logo on the left of the window title
 	local y2kLogo = Instance.new("ImageLabel")
 	y2kLogo.Name = "Y2kLogo"
 	y2kLogo.BackgroundTransparency = 1
-	y2kLogo.Size = UDim2.fromOffset(26, 26)
+	y2kLogo.Size = UDim2.fromOffset(34, 34)
 	y2kLogo.LayoutOrder = 0
 	y2kLogo.Image = GetLogoImage()
 	local y2kLogoCorner = Instance.new("UICorner")
-	y2kLogoCorner.CornerRadius = UDim.new(0, 7)
+	y2kLogoCorner.CornerRadius = UDim.new(0, 9)
 	y2kLogoCorner.Parent = y2kLogo
 	y2kLogo.Parent = titleFrame
 
@@ -416,10 +437,11 @@ function MacLib:Window(Settings)
 	titleCol.Name = "TitleColumn"
 	titleCol.BackgroundTransparency = 1
 	titleCol.LayoutOrder = 1
-	titleCol.AutomaticSize = Enum.AutomaticSize.Y
-	titleCol.Size = UDim2.new(1, -36, 0, 0)
+	titleCol.AutomaticSize = Enum.AutomaticSize.XY
+	titleCol.Size = UDim2.fromOffset(0, 0)
 	local titleColLayout = Instance.new("UIListLayout")
 	titleColLayout.Padding = UDim.new(0, 3)
+	titleColLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	titleColLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	titleColLayout.Parent = titleCol
 
@@ -436,14 +458,14 @@ function MacLib:Window(Settings)
 	title.TextSize = 18
 	title.TextTransparency = 0.1
 	title.TextTruncate = Enum.TextTruncate.SplitWord
-	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextXAlignment = Enum.TextXAlignment.Center
 	title.TextYAlignment = Enum.TextYAlignment.Top
-	title.AutomaticSize = Enum.AutomaticSize.Y
+	title.AutomaticSize = Enum.AutomaticSize.XY
 	title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	title.BackgroundTransparency = 1
 	title.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	title.BorderSizePixel = 0
-	title.Size = UDim2.new(1, -20, 0, 0)
+	title.Size = UDim2.fromOffset(0, 0)
 	title.Parent = titleCol
 
 	local subtitle = Instance.new("TextLabel")
@@ -460,15 +482,15 @@ function MacLib:Window(Settings)
 	subtitle.TextSize = 12
 	subtitle.TextTransparency = 0.7
 	subtitle.TextTruncate = Enum.TextTruncate.SplitWord
-	subtitle.TextXAlignment = Enum.TextXAlignment.Left
+	subtitle.TextXAlignment = Enum.TextXAlignment.Center
 	subtitle.TextYAlignment = Enum.TextYAlignment.Top
-	subtitle.AutomaticSize = Enum.AutomaticSize.Y
+	subtitle.AutomaticSize = Enum.AutomaticSize.XY
 	subtitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	subtitle.BackgroundTransparency = 1
 	subtitle.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	subtitle.BorderSizePixel = 0
 	subtitle.LayoutOrder = 1
-	subtitle.Size = UDim2.new(1, -20, 0, 0)
+	subtitle.Size = UDim2.fromOffset(0, 0)
 	subtitle.Parent = titleCol
 
 	titleCol.Parent = titleFrame
@@ -479,6 +501,7 @@ function MacLib:Window(Settings)
 	titleFrameUIListLayout.Padding = UDim.new(0, 10)
 	titleFrameUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	titleFrameUIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	titleFrameUIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	titleFrameUIListLayout.Parent = titleFrame
 
 	titleFrame.Parent = informationHolder
@@ -620,6 +643,93 @@ function MacLib:Window(Settings)
 	username.LayoutOrder = 1
 	username.Parent = userAndDisplayFrame
 	username.Size = UDim2.fromScale(1,0)
+
+	-- ===== Y2k: license-time badge under the username =====
+	userAndDisplayFrame.AutomaticSize = Enum.AutomaticSize.Y
+	local licenseSpacer = Instance.new("Frame")
+	licenseSpacer.Name = "LicenseSpacer"
+	licenseSpacer.LayoutOrder = 2
+	licenseSpacer.BackgroundTransparency = 1
+	licenseSpacer.Size = UDim2.fromOffset(1, 6)
+	licenseSpacer.Parent = userAndDisplayFrame
+	local licenseRow = Instance.new("Frame")
+	licenseRow.Name = "LicenseRow"
+	licenseRow.LayoutOrder = 3
+	licenseRow.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	licenseRow.BackgroundTransparency = 0.97
+	licenseRow.BorderSizePixel = 0
+	licenseRow.AutomaticSize = Enum.AutomaticSize.X
+	licenseRow.Size = UDim2.fromOffset(0, 18)
+	local licenseRowCorner = Instance.new("UICorner")
+	licenseRowCorner.CornerRadius = UDim.new(1, 0)
+	licenseRowCorner.Parent = licenseRow
+	local licenseRowPad = Instance.new("UIPadding")
+	licenseRowPad.PaddingLeft = UDim.new(0, 4)
+	licenseRowPad.PaddingRight = UDim.new(0, 8)
+	licenseRowPad.Parent = licenseRow
+	local licenseRowLayout = Instance.new("UIListLayout")
+	licenseRowLayout.FillDirection = Enum.FillDirection.Horizontal
+	licenseRowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	licenseRowLayout.Padding = UDim.new(0, 5)
+	licenseRowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	licenseRowLayout.Parent = licenseRow
+
+	local licenseRing = Instance.new("Frame")
+	licenseRing.Name = "Ring"
+	licenseRing.BackgroundTransparency = 1
+	licenseRing.Size = UDim2.fromOffset(11, 11)
+	licenseRing.Parent = licenseRow
+	local licenseRingCorner = Instance.new("UICorner")
+	licenseRingCorner.CornerRadius = UDim.new(1, 0)
+	licenseRingCorner.Parent = licenseRing
+	local licenseRingStroke = Instance.new("UIStroke")
+	licenseRingStroke.Thickness = 2
+	licenseRingStroke.Color = Color3.fromRGB(52, 199, 89)
+	licenseRingStroke.Parent = licenseRing
+	local licenseDot = Instance.new("Frame")
+	licenseDot.Name = "Dot"
+	licenseDot.AnchorPoint = Vector2.new(0.5, 0.5)
+	licenseDot.Position = UDim2.fromScale(0.5, 0.5)
+	licenseDot.Size = UDim2.fromOffset(4, 4)
+	licenseDot.BackgroundColor3 = Color3.fromRGB(52, 199, 89)
+	licenseDot.BorderSizePixel = 0
+	licenseDot.Parent = licenseRing
+	local licenseDotCorner = Instance.new("UICorner")
+	licenseDotCorner.CornerRadius = UDim.new(1, 0)
+	licenseDotCorner.Parent = licenseDot
+
+	local licenseText = Instance.new("TextLabel")
+	licenseText.Name = "Text"
+	licenseText.LayoutOrder = 1
+	licenseText.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+	licenseText.Text = ""
+	licenseText.TextSize = 11
+	licenseText.AutomaticSize = Enum.AutomaticSize.X
+	licenseText.Size = UDim2.fromOffset(0, 14)
+	licenseText.BackgroundTransparency = 1
+	licenseText.TextColor3 = Color3.fromRGB(52, 199, 89)
+	licenseText.TextXAlignment = Enum.TextXAlignment.Left
+	licenseText.Parent = licenseRow
+
+	local function setLicense(hours)
+		hours = tonumber(hours) or 0
+		local col
+		if hours > 24 then col = Color3.fromRGB(52, 199, 89)
+		elseif hours >= 6 then col = Color3.fromRGB(255, 196, 60)
+		else col = Color3.fromRGB(255, 80, 95) end
+		licenseRingStroke.Color = col
+		licenseDot.BackgroundColor3 = col
+		licenseText.TextColor3 = col
+		local frac = math.clamp(1 - math.min(hours, 48) / 48, 0, 1)
+		local s = 3 + frac * 6
+		licenseDot.Size = UDim2.fromOffset(s, s)
+		if hours <= 0 then licenseText.Text = "expired"
+		elseif hours < 1 then licenseText.Text = math.floor(hours * 60) .. "m left"
+		else licenseText.Text = math.floor(hours) .. "h left" end
+	end
+	function WindowFunctions:SetLicense(hours) setLicense(hours) end
+	setLicense(23)  -- demo sample; real scripts call Window:SetLicense(hoursLeft)
+	licenseRow.Parent = userAndDisplayFrame
 
 	userAndDisplayFrame.Parent = informationGroup
 
@@ -791,7 +901,7 @@ function MacLib:Window(Settings)
 	moveIcon.Position = UDim2.fromScale(1, 0.5)
 	moveIcon.Size = UDim2.fromOffset(15, 15)
 	moveIcon.Parent = elements
-	moveIcon.Visible = not Settings.DragStyle or Settings.DragStyle == 1
+	moveIcon.Visible = false  -- Y2k: drag is by the title bar instead
 
 	local interact = Instance.new("TextButton")
 	interact.Name = "Interact"
@@ -899,6 +1009,92 @@ function MacLib:Window(Settings)
 		end)
 	end
 
+	-- ===== Y2k: robust drag by the top bar (+ sidebar title) =====
+	local _yDrag, _yStartPos, _yMouse
+	local function yDragStart(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			_yDrag = true; _yMouse = input.Position; _yStartPos = base.Position
+			input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then _yDrag = false end end)
+		end
+	end
+	for _, handle in ipairs({ topbar, titleFrame }) do
+		handle.Active = true
+		handle.InputBegan:Connect(yDragStart)
+	end
+	UserInputService.InputChanged:Connect(function(input)
+		if _yDrag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local d = input.Position - _yMouse
+			base.Position = UDim2.new(_yStartPos.X.Scale, _yStartPos.X.Offset + d.X, _yStartPos.Y.Scale, _yStartPos.Y.Offset + d.Y)
+		end
+	end)
+
+	-- ===== Y2k: close + minimize as lucide icons in the top-right of the top bar =====
+	local y2kCtrls = Instance.new("Frame")
+	y2kCtrls.Name = "Y2kControls"
+	y2kCtrls.AnchorPoint = Vector2.new(1, 0.5)
+	y2kCtrls.Position = UDim2.new(1, -6, 0.5, 0)
+	y2kCtrls.Size = UDim2.fromOffset(56, 24)
+	y2kCtrls.BackgroundTransparency = 1
+	y2kCtrls.ZIndex = 5
+	y2kCtrls.Parent = elements
+	local y2kCtrlsLayout = Instance.new("UIListLayout")
+	y2kCtrlsLayout.FillDirection = Enum.FillDirection.Horizontal
+	y2kCtrlsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	y2kCtrlsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	y2kCtrlsLayout.Padding = UDim.new(0, 10)
+	y2kCtrlsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	y2kCtrlsLayout.Parent = y2kCtrls
+	local function y2kIconBtn(btn, iconName, order, hoverCol)
+		for _, c in ipairs(btn:GetChildren()) do if c:IsA("UIStroke") or c:IsA("UICorner") then c:Destroy() end end
+		btn.Parent = y2kCtrls
+		btn.LayoutOrder = order
+		btn.Visible = true; btn.Active = true; btn.Interactable = true
+		btn.AutoButtonColor = false
+		btn.Text = ""
+		btn.BackgroundTransparency = 1
+		btn.Size = UDim2.fromOffset(20, 20)
+		btn.ZIndex = 6
+		local img = Instance.new("ImageLabel")
+		img.Name = "Icon"; img.BackgroundTransparency = 1
+		img.AnchorPoint = Vector2.new(0.5, 0.5); img.Position = UDim2.fromScale(0.5, 0.5)
+		img.Size = UDim2.fromOffset(17, 17)
+		img.Image = GetY2kIcon(iconName)
+		img.ImageColor3 = Color3.fromRGB(228, 228, 236)
+		img.ZIndex = 7; img.Parent = btn
+		btn.MouseEnter:Connect(function() Tween(img, TweenInfo.new(0.15), { ImageColor3 = hoverCol }):Play() end)
+		btn.MouseLeave:Connect(function() Tween(img, TweenInfo.new(0.15), { ImageColor3 = Color3.fromRGB(228, 228, 236) }):Play() end)
+	end
+	y2kIconBtn(minimize, "ic_min", 1, Color3.fromRGB(255, 200, 70))
+	y2kIconBtn(exit, "ic_x", 2, Color3.fromRGB(255, 90, 100))
+
+	-- ===== Y2k: resize handle (lucide icon, bottom-right) =====
+	local resizeHandle = Instance.new("ImageButton")
+	resizeHandle.Name = "Y2kResize"
+	resizeHandle.AnchorPoint = Vector2.new(1, 1)
+	resizeHandle.Position = UDim2.new(1, -5, 1, -5)
+	resizeHandle.Size = UDim2.fromOffset(18, 18)
+	resizeHandle.BackgroundTransparency = 1
+	resizeHandle.Image = GetY2kIcon("ic_resize")
+	resizeHandle.ImageColor3 = Color3.fromRGB(130, 130, 140)
+	resizeHandle.ImageTransparency = 0.25
+	resizeHandle.ZIndex = 50
+	resizeHandle.Parent = base
+	local _rz, _rzMouse, _rzSize
+	resizeHandle.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			_rz = true; _rzMouse = input.Position; _rzSize = base.AbsoluteSize
+			input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then _rz = false end end)
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if _rz and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local d = input.Position - _rzMouse
+			base.Size = UDim2.fromOffset(math.max(480, _rzSize.X + d.X), math.max(330, _rzSize.Y + d.Y))
+		end
+	end)
+	resizeHandle.MouseEnter:Connect(function() Tween(resizeHandle, TweenInfo.new(0.15), { ImageTransparency = 0 }):Play() end)
+	resizeHandle.MouseLeave:Connect(function() Tween(resizeHandle, TweenInfo.new(0.15), { ImageTransparency = 0.25 }):Play() end)
+
 	local currentTab = Instance.new("TextLabel")
 	currentTab.Name = "CurrentTab"
 	currentTab.FontFace = Font.new(assets.interFont)
@@ -930,7 +1126,7 @@ function MacLib:Window(Settings)
 	local globalSettings = Instance.new("Frame")
 	globalSettings.Name = "GlobalSettings"
 	globalSettings.AutomaticSize = Enum.AutomaticSize.XY
-	globalSettings.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+	globalSettings.BackgroundColor3 = Color3.fromRGB(9, 9, 11)
 	globalSettings.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	globalSettings.BorderSizePixel = 0
 	globalSettings.Position = UDim2.fromScale(0.298, 0.104)
@@ -1484,13 +1680,13 @@ function MacLib:Window(Settings)
 			tabSwitcherName.Name = "TabSwitcherName"
 			tabSwitcherName.FontFace = Font.new(
 				assets.interFont,
-				Enum.FontWeight.Medium,
+				Enum.FontWeight.Regular,
 				Enum.FontStyle.Normal
 			)
 			tabSwitcherName.Text = Settings.Name
 			tabSwitcherName.RichText = true
 			tabSwitcherName.TextColor3 = Color3.fromRGB(255, 255, 255)
-			tabSwitcherName.TextSize = 16
+			tabSwitcherName.TextSize = 15
 			tabSwitcherName.TextTransparency = 0.5
 			tabSwitcherName.TextTruncate = Enum.TextTruncate.SplitWord
 			tabSwitcherName.TextXAlignment = Enum.TextXAlignment.Left
@@ -1960,26 +2156,43 @@ function MacLib:Window(Settings)
 
 					local sliderBar = Instance.new("ImageLabel")
 					sliderBar.Name = "SliderBar"
-					sliderBar.Image = assets.sliderbar
-					sliderBar.ImageColor3 = Color3.fromRGB(87, 86, 86)
-					sliderBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-					sliderBar.BackgroundTransparency = 1
+					sliderBar.Image = ""
+					sliderBar.BackgroundColor3 = Color3.fromRGB(52, 52, 58)
+					sliderBar.BackgroundTransparency = 0
 					sliderBar.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					sliderBar.BorderSizePixel = 0
 					sliderBar.Position = UDim2.fromScale(0.219, 0.457)
-					sliderBar.Size = UDim2.fromOffset(123, 3)
+					sliderBar.Size = UDim2.fromOffset(123, 7)
+					local sliderBarCorner = Instance.new("UICorner")
+					sliderBarCorner.CornerRadius = UDim.new(1, 0)
+					sliderBarCorner.Parent = sliderBar
+					-- accent fill up to the knob (pill)
+					local sliderFill = Instance.new("Frame")
+					sliderFill.Name = "SliderFill"
+					sliderFill.BackgroundColor3 = Color3.fromRGB(140, 140, 150)
+					sliderFill.BorderSizePixel = 0
+					sliderFill.Size = UDim2.fromScale(0.5, 1)
+					sliderFill.ZIndex = 2
+					sliderFill.Parent = sliderBar
+					local sliderFillCorner = Instance.new("UICorner")
+					sliderFillCorner.CornerRadius = UDim.new(1, 0)
+					sliderFillCorner.Parent = sliderFill
 
 					local sliderHead = Instance.new("ImageButton")
 					sliderHead.Name = "SliderHead"
-					sliderHead.Image = assets.sliderhead
+					sliderHead.Image = ""
 					sliderHead.AnchorPoint = Vector2.new(0.5, 0.5)
 					sliderHead.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-					sliderHead.BackgroundTransparency = 1
+					sliderHead.BackgroundTransparency = 0
 					sliderHead.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					sliderHead.BorderSizePixel = 0
 					sliderHead.Position = UDim2.fromScale(1, 0.5)
-					sliderHead.Size = UDim2.fromOffset(12, 12)
+					sliderHead.Size = UDim2.fromOffset(15, 15)
+					sliderHead.ZIndex = 3
 					sliderHead.Parent = sliderBar
+					local sliderHeadCorner = Instance.new("UICorner")
+					sliderHeadCorner.CornerRadius = UDim.new(1, 0)
+					sliderHeadCorner.Parent = sliderHead
 
 					sliderBar.Parent = sliderElements
 
@@ -2035,6 +2248,7 @@ function MacLib:Window(Settings)
 
 						local pos = UDim2.new(posXScale, 0, 0.5, 0)
 						sliderHead.Position = pos
+						sliderFill.Size = UDim2.new(posXScale, 0, 1, 0)  -- accent fill tracks the knob
 
 						finalValue = posXScale * (SliderFunctions.Settings.Maximum - SliderFunctions.Settings.Minimum) + Settings.Minimum
 
@@ -2554,7 +2768,7 @@ function MacLib:Window(Settings)
 
 					local dropdownImage = Instance.new("ImageLabel")
 					dropdownImage.Name = "DropdownImage"
-					dropdownImage.Image = assets.dropdown
+					dropdownImage.Image = GetY2kIcon("ic_chev")
 					dropdownImage.ImageTransparency = 0.5
 					dropdownImage.AnchorPoint = Vector2.new(1, 0)
 					dropdownImage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -2771,7 +2985,7 @@ function MacLib:Window(Settings)
 							Size = targetSize
 						})
 						local iconTween = Tween(dropdownImage, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-							Rotation = isDropdownOpen and -90 or 0
+							Rotation = isDropdownOpen and 180 or 0
 						})
 
 						dropTween:Play()
@@ -3164,7 +3378,7 @@ function MacLib:Window(Settings)
 					prompt.Name = "Prompt"
 					prompt.AnchorPoint = Vector2.new(0.5, 0.5)
 					prompt.AutomaticSize = Enum.AutomaticSize.Y
-					prompt.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+					prompt.BackgroundColor3 = Color3.fromRGB(9, 9, 11)
 					prompt.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					prompt.BorderSizePixel = 0
 					prompt.Position = UDim2.fromScale(0.5, 0.5)
@@ -4823,7 +5037,7 @@ function MacLib:Window(Settings)
 		notification.Name = "Notification"
 		notification.AnchorPoint = Vector2.new(0.5, 0.5)
 		notification.AutomaticSize = Enum.AutomaticSize.Y
-		notification.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+		notification.BackgroundColor3 = Color3.fromRGB(9, 9, 11)
 		notification.BorderColor3 = Color3.fromRGB(0, 0, 0)
 		notification.BorderSizePixel = 0
 		notification.Position = UDim2.fromScale(0.5, 0.5)
@@ -5058,7 +5272,7 @@ function MacLib:Window(Settings)
 		prompt.Name = "Prompt"
 		prompt.AnchorPoint = Vector2.new(0.5, 0.5)
 		prompt.AutomaticSize = Enum.AutomaticSize.Y
-		prompt.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+		prompt.BackgroundColor3 = Color3.fromRGB(9, 9, 11)
 		prompt.BorderColor3 = Color3.fromRGB(0, 0, 0)
 		prompt.BorderSizePixel = 0
 		prompt.Position = UDim2.fromScale(0.5, 0.5)
@@ -5657,8 +5871,8 @@ end
 
 function MacLib:Demo()
 	local Window = MacLib:Window({
-		Title = "Maclib Demo",
-		Subtitle = "This is a subtitle.",
+		Title = "Y2k Hub",
+		Subtitle = "discord.gg/EFFKrfFkPQ",
 		Size = UDim2.fromOffset(868, 650),
 		DragStyle = 1,
 		DisabledWindowControls = {},

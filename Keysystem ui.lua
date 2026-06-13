@@ -391,488 +391,149 @@ ToastSystem.RepositionToasts = function()
 end
 
 local function Build()
-	local parent = game:GetService("CoreGui")
-	local old = parent:FindFirstChild(Configuration.ScreenGuiName)
-	if old then
-		old:Destroy()
-	end
+	local parent = (gethui and gethui()) or game:GetService("CoreGui")
+	local old = parent:FindFirstChild("Y2kKeySystem"); if old then old:Destroy() end
 	local screen = Instance.new("ScreenGui")
-	screen.Name = Configuration.ScreenGuiName
+	screen.Name = "Y2kKeySystem"
 	screen.ResetOnSpawn = false
+	screen.IgnoreGuiInset = true
+	screen.DisplayOrder = 99999
 	screen.Parent = parent
 
-	-- Y2k chrome backdrop (full-screen, behind everything)
-	local backdrop = Instance.new("ImageLabel")
-	backdrop.Name = "Y2kBackdrop"
-	backdrop.Size = UDim2.fromScale(1, 1)
-	backdrop.BackgroundColor3 = Color3.fromRGB(4, 4, 12)
-	backdrop.BorderSizePixel = 0
-	backdrop.Image = KEY_BG_IMAGE or ""
-	backdrop.ScaleType = Enum.ScaleType.Crop
-	backdrop.ImageTransparency = 0.12
-	backdrop.ZIndex = -10
-	backdrop.Parent = screen
-	-- blue-chrome gradient (shows through when no image / tints the image)
-	local bgGrad = Instance.new("UIGradient")
-	bgGrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(58, 40, 150)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(24, 28, 70)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 10, 28)),
-	})
-	bgGrad.Rotation = 45
-	bgGrad.Parent = backdrop
-	backdrop.BackgroundTransparency = (KEY_BG_IMAGE ~= "" and 0.25) or 0
-	-- soft fade so the key card pops
-	local vignette = Instance.new("Frame")
-	vignette.Size = UDim2.fromScale(1, 1)
-	vignette.BackgroundColor3 = Color3.fromRGB(2, 2, 8)
-	vignette.BackgroundTransparency = 0.35
-	vignette.BorderSizePixel = 0
-	vignette.ZIndex = -9
-	vignette.Parent = screen
+	SetBlur(true)
 
-	-- Discord banner (top of screen, transparent, blinking + glow)
-	local discordBanner = Instance.new("TextLabel")
-	discordBanner.Name = "DiscordBanner"
-	discordBanner.Size = UDim2.new(0, 400, 0, 32)
-	discordBanner.Position = UDim2.new(0.5, 0, 0, 10)
-	discordBanner.AnchorPoint = Vector2.new(0.5, 0)
-	discordBanner.BackgroundTransparency = 1
-	discordBanner.Text = "Join https://discord.gg/EFFKrfFkPQ"
-	discordBanner.TextColor3 = Color3.fromRGB(88, 101, 242)
-	discordBanner.TextSize = 16
-	discordBanner.Font = Enum.Font.GothamBold
-	discordBanner.TextTransparency = 0
-	discordBanner.Parent = screen
+	local C = {
+		Bg = Color3.fromRGB(11, 11, 13), Field = Color3.fromRGB(26, 26, 30),
+		Accent = Color3.fromRGB(91, 124, 255), Text = Color3.fromRGB(243, 243, 246),
+		Sub = Color3.fromRGB(124, 124, 134), Green = Color3.fromRGB(52, 199, 89),
+		Red = Color3.fromRGB(255, 80, 95), Hair = Color3.fromRGB(255, 255, 255),
+	}
+	local function corner(p, r) local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, r) c.Parent = p end
+	local function hair(p, t) local s = Instance.new("UIStroke") s.Color = C.Hair s.Transparency = t or 0.9 s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border s.Parent = p end
 
-	local bannerStroke = Instance.new("UIStroke")
-	bannerStroke.Color = Color3.fromRGB(88, 101, 242)
-	bannerStroke.Thickness = 2
-	bannerStroke.Transparency = 0.3
-	bannerStroke.Parent = discordBanner
+	-- Y2k logo (PNG on the worker; Roblox can't render webp)
+	local logoImage = "https://y2k-keys.y2kscript.workers.dev/asset?name=logo"
+	if writefile and getcustomasset and isfile then
+		pcall(function()
+			if not isfile("y2k_logo.png") then writefile("y2k_logo.png", game:HttpGet(logoImage)) end
+			logoImage = getcustomasset("y2k_logo.png")
+		end)
+	end
 
-	task.spawn(function()
-		while discordBanner and discordBanner.Parent do
-			Utils.Tween(discordBanner, {TextTransparency = 0.4}, 0.6)
-			Utils.Tween(bannerStroke, {Transparency = 0.7}, 0.6)
-			task.wait(0.6)
-			Utils.Tween(discordBanner, {TextTransparency = 0}, 0.6)
-			Utils.Tween(bannerStroke, {Transparency = 0.3}, 0.6)
-			task.wait(0.6)
+	local card = Instance.new("Frame")
+	card.Name = "Card"
+	card.Size = UDim2.fromOffset(360, 446)
+	card.Position = UDim2.fromScale(0.5, 0.5)
+	card.AnchorPoint = Vector2.new(0.5, 0.5)
+	card.BackgroundColor3 = C.Bg
+	card.BorderSizePixel = 0
+	card.Parent = screen
+	corner(card, 18); hair(card, 0.9)
+	local shadow = Instance.new("ImageLabel")
+	shadow.Image = "rbxassetid://6014261993"; shadow.ImageColor3 = Color3.new(0, 0, 0); shadow.ImageTransparency = 0.45
+	shadow.ScaleType = Enum.ScaleType.Slice; shadow.SliceCenter = Rect.new(49, 49, 450, 450)
+	shadow.Size = UDim2.new(1, 70, 1, 70); shadow.Position = UDim2.fromScale(0.5, 0.5); shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+	shadow.BackgroundTransparency = 1; shadow.ZIndex = 0; shadow.Parent = card
+
+	local content = Instance.new("Frame")
+	content.Size = UDim2.fromScale(1, 1); content.BackgroundTransparency = 1; content.Parent = card
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 30); pad.PaddingBottom = UDim.new(0, 24)
+	pad.PaddingLeft = UDim.new(0, 26); pad.PaddingRight = UDim.new(0, 26); pad.Parent = content
+	local list = Instance.new("UIListLayout")
+	list.Padding = UDim.new(0, 14); list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.SortOrder = Enum.SortOrder.LayoutOrder; list.Parent = content
+
+	local logo = Instance.new("ImageLabel")
+	logo.Size = UDim2.fromOffset(66, 66); logo.BackgroundTransparency = 1; logo.Image = logoImage; logo.LayoutOrder = 0; logo.Parent = content
+	corner(logo, 16)
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, 0, 0, 24); title.BackgroundTransparency = 1; title.Text = "Y2k Script"
+	title.TextColor3 = C.Text; title.Font = Enum.Font.GothamBold; title.TextSize = 21; title.LayoutOrder = 1; title.Parent = content
+
+	local sub = Instance.new("TextLabel")
+	sub.Size = UDim2.new(1, 0, 0, 16); sub.BackgroundTransparency = 1; sub.Text = "discord.gg/EFFKrfFkPQ"
+	sub.TextColor3 = C.Sub; sub.Font = Enum.Font.Gotham; sub.TextSize = 12; sub.LayoutOrder = 2; sub.Parent = content
+
+	local status = Instance.new("TextLabel")
+	status.Size = UDim2.new(1, 0, 0, 14); status.BackgroundTransparency = 1; status.Text = "ENTER YOUR KEY"
+	status.TextColor3 = C.Sub; status.Font = Enum.Font.GothamBold; status.TextSize = 11; status.LayoutOrder = 3; status.Parent = content
+
+	local inputFrame = Instance.new("Frame")
+	inputFrame.Size = UDim2.new(1, 0, 0, 44); inputFrame.BackgroundColor3 = C.Field; inputFrame.BorderSizePixel = 0; inputFrame.LayoutOrder = 4; inputFrame.Parent = content
+	corner(inputFrame, 11); hair(inputFrame, 0.88)
+	local box = Instance.new("TextBox")
+	box.Size = UDim2.new(1, -26, 1, 0); box.Position = UDim2.fromOffset(13, 0); box.BackgroundTransparency = 1
+	box.PlaceholderText = "Paste your key..."; box.Text = ""; box.TextColor3 = C.Text; box.PlaceholderColor3 = C.Sub
+	box.Font = Enum.Font.Gotham; box.TextSize = 14; box.TextXAlignment = Enum.TextXAlignment.Left; box.ClearTextOnFocus = false; box.Parent = inputFrame
+
+	local redeem = Instance.new("TextButton")
+	redeem.Size = UDim2.new(1, 0, 0, 44); redeem.BackgroundColor3 = C.Accent; redeem.Text = "Redeem"
+	redeem.TextColor3 = Color3.new(1, 1, 1); redeem.Font = Enum.Font.GothamBold; redeem.TextSize = 14
+	redeem.AutoButtonColor = false; redeem.LayoutOrder = 5; redeem.Parent = content
+	corner(redeem, 11)
+
+	local getKey = Instance.new("TextButton")
+	getKey.Size = UDim2.new(1, 0, 0, 42); getKey.BackgroundColor3 = C.Field; getKey.Text = "Get Key"
+	getKey.TextColor3 = C.Text; getKey.Font = Enum.Font.GothamBold; getKey.TextSize = 13
+	getKey.AutoButtonColor = false; getKey.LayoutOrder = 6; getKey.Parent = content
+	corner(getKey, 11); hair(getKey, 0.9)
+
+	local closeBtn = Instance.new("TextButton")
+	closeBtn.Size = UDim2.fromOffset(26, 26); closeBtn.Position = UDim2.new(1, -16, 0, 16); closeBtn.AnchorPoint = Vector2.new(1, 0)
+	closeBtn.BackgroundColor3 = C.Field; closeBtn.Text = "\u{2715}"; closeBtn.TextColor3 = C.Sub
+	closeBtn.Font = Enum.Font.GothamBold; closeBtn.TextSize = 12; closeBtn.AutoButtonColor = false; closeBtn.ZIndex = 5; closeBtn.Parent = card
+	corner(closeBtn, 13); hair(closeBtn, 0.88)
+
+	local function SetStatus(s)
+		if s == "verifying" then status.Text = "VERIFYING..."; status.TextColor3 = C.Accent
+		elseif s == "success" then status.Text = "ACCESS GRANTED"; status.TextColor3 = C.Green
+		elseif s == "error" then status.Text = "INVALID KEY"; status.TextColor3 = C.Red
+		else status.Text = "ENTER YOUR KEY"; status.TextColor3 = C.Sub end
+	end
+
+	redeem.MouseButton1Click:Connect(function()
+		local key = (box.Text:gsub("%s+", ""))
+		if key == "" then SetStatus("error"); return end
+		SetStatus("verifying"); redeem.Text = "..."; redeem.Active = false
+		local result = Junkie.check_key(key)
+		redeem.Active = true; redeem.Text = "Redeem"
+		if result and result.valid then
+			saveVerifiedKey(key)
+			getgenv().SCRIPT_KEY = key
+			SetStatus("success")
+			ToastSystem.Create(screen, "Access granted", "success")
+			task.wait(0.55)
+			SetBlur(false)
+			Utils.Tween(card, { BackgroundTransparency = 1, Position = UDim2.new(0.5, 0, 0.5, 60) }, 0.4)
+			task.delay(0.45, function() screen:Destroy() end)
+		else
+			SetStatus("error")
+			ToastSystem.Create(screen, (result and result.message) or "Invalid key", "error")
 		end
 	end)
+	getKey.MouseButton1Click:Connect(function()
+		pcall(function() setclipboard(Junkie.get_key_link()) end)
+		ToastSystem.Create(screen, "Key link copied to clipboard", "success")
+	end)
+	closeBtn.MouseButton1Click:Connect(function() SetBlur(false); screen:Destroy() end)
 
-	local overlay = Instance.new("Frame")
-	overlay.Size = UDim2.fromScale(1, 1)
-	overlay.BackgroundColor3 = Color3.new(0, 0, 0)
-	overlay.BackgroundTransparency = 1
-	overlay.Parent = screen
-	Utils.Tween(overlay, {BackgroundTransparency = 1}, 1)
-	SetBlur(true)
-	local main = Instance.new("Frame")
-	main.Size = Configuration.Window.Size
-	main.Position = UDim2.new(0.5, 0, 0.5, 60)
-	main.AnchorPoint = Vector2.new(0.5, 0.5)
-	main.BackgroundColor3 = Configuration.Colors.Bg
-	main.BackgroundTransparency = 0.2
-	main.ClipsDescendants = true
-	main.Parent = screen
-	Utils.Round(main, 24)
-	Utils.Stroke(main, Color3.new(1, 1, 1), 1, 0.92)
-	local glass = Instance.new("Frame")
-	glass.Size = UDim2.fromScale(1, 1)
-	glass.BackgroundColor3 = Color3.new(1, 1, 1)
-	glass.BackgroundTransparency = 0.985
-	glass.ZIndex = 0
-	glass.Parent = main
-	Utils.Round(glass, 24)
-	local bar = Instance.new("Frame")
-	bar.Size = UDim2.new(1, 0, 0, 54)
-	bar.BackgroundTransparency = 1
-	bar.Parent = main
-	local dots = Instance.new("Frame")
-	dots.Size = UDim2.new(0, 54, 0, 12)
-	dots.Position = UDim2.new(0, 20, 0.5, 0)
-	dots.AnchorPoint = Vector2.new(0, 0.5)
-	dots.BackgroundTransparency = 1
-	dots.Parent = bar
-	local dColors = {
-		Configuration.Colors.TrafficRed,
-		Configuration.Colors.TrafficYellow,
-		Configuration.Colors.TrafficGreen
-	}
-	for i, c in ipairs(dColors) do
-		local d = Instance.new("Frame")
-		d.Size = UDim2.fromOffset(12, 12)
-		d.Position = UDim2.fromOffset((i - 1) * 18, 0)
-		d.BackgroundColor3 = c
-		d.BorderSizePixel = 0
-		d.Parent = dots
-		Utils.Round(d, 6)
-	end
-	local titleText = Instance.new("TextLabel")
-	titleText.Size = UDim2.new(1, 0, 1, 0)
-	titleText.Text = "JUNKIE"
-	titleText.TextColor3 = Color3.new(1, 1, 1)
-	titleText.TextTransparency = 0.7
-	titleText.TextSize = 10
-	titleText.Font = Enum.Font.GothamBold
-	titleText.BackgroundTransparency = 1
-	titleText.Parent = bar
-	local content = Instance.new("ScrollingFrame")
-	content.Size = UDim2.new(1, 0, 1, -54)
-	content.Position = UDim2.new(0, 0, 0, 54)
-	content.BackgroundTransparency = 1
-	content.ScrollBarThickness = 0
-	content.CanvasSize = UDim2.new(0, 0, 0, 440)
-	content.Parent = main
-	local list = Instance.new("UIListLayout")
-	list.Padding = UDim.new(0, 24)
-	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	list.Parent = content
-	local pad = Instance.new("UIPadding")
-	pad.PaddingTop = UDim.new(0, 5)
-	pad.Parent = content
-	local logoContainer = Instance.new("Frame")
-	logoContainer.Size = UDim2.fromOffset(80, 80)
-	logoContainer.BackgroundColor3 = Configuration.Colors.Primary
-	logoContainer.Parent = content
-	Utils.Round(logoContainer, 20)
-	local grad = Instance.new("UIGradient")
-	grad.Color = ColorSequence.new(Configuration.Colors.Primary, Configuration.Colors.PrimaryDark)
-	grad.Rotation = 45
-	grad.Parent = logoContainer
-	local sIcon = Instance.new("ImageLabel")
-	sIcon.Size = UDim2.fromScale(1, 1)
-	sIcon.Position = UDim2.fromScale(0.5, 0.5)
-	sIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-	sIcon.Image = Icons.JunkieNewIcon
-	sIcon.ScaleType = Enum.ScaleType.Fit
-	sIcon.BackgroundTransparency = 1
-	sIcon.Parent = logoContainer
-	local titleArea = Instance.new("Frame")
-	titleArea.Size = UDim2.new(1, 0, 0, 44)
-	titleArea.BackgroundTransparency = 1
-	titleArea.Parent = content
-	local mainTitle = Instance.new("TextLabel")
-	mainTitle.Size = UDim2.new(1, 0, 0, 26)
-	mainTitle.Text = "Junkie"
-	mainTitle.TextColor3 = Color3.new(1, 1, 1)
-	mainTitle.TextSize = 26
-	mainTitle.Font = Enum.Font.GothamBold
-	mainTitle.BackgroundTransparency = 1
-	mainTitle.Parent = titleArea
-	local subTitle = Instance.new("TextLabel")
-	subTitle.Size = UDim2.new(1, 0, 0, 16)
-	subTitle.Position = UDim2.fromOffset(0, 28)
-	subTitle.Text = "junkie-development.de"
-	subTitle.TextColor3 = Configuration.Colors.TextSec
-	subTitle.TextSize = 13
-	subTitle.Font = Enum.Font.Gotham
-	subTitle.BackgroundTransparency = 1
-	subTitle.Parent = titleArea
-	local statusCard = Instance.new("Frame")
-	statusCard.Size = UDim2.new(0, 280, 0, 68)
-	statusCard.BackgroundColor3 = Color3.new(1, 1, 1)
-	statusCard.BackgroundTransparency = 0.96
-	statusCard.Parent = content
-	Utils.Round(statusCard, 16)
-	local sStroke = Utils.Stroke(statusCard, Color3.new(1, 1, 1), 1, 0.95)
-	local sIconBg = Instance.new("Frame")
-	sIconBg.Size = UDim2.fromOffset(42, 42)
-	sIconBg.Position = UDim2.new(0, 14, 0.5, 0)
-	sIconBg.AnchorPoint = Vector2.new(0, 0.5)
-	sIconBg.BackgroundColor3 = Configuration.Colors.StatusIdle
-	sIconBg.BackgroundTransparency = 0.9
-	sIconBg.Parent = statusCard
-	Utils.Round(sIconBg, 21)
-	local sImg = Instance.new("ImageLabel")
-	sImg.Size = UDim2.fromScale(0.5, 0.5)
-	sImg.Position = UDim2.fromScale(0.5, 0.5)
-	sImg.AnchorPoint = Vector2.new(0.5, 0.5)
-	sImg.Image = Icons.Lock
-	sImg.ImageColor3 = Configuration.Colors.StatusIdle
-	sImg.BackgroundTransparency = 1
-	sImg.Parent = sIconBg
-	local sLabel = Instance.new("TextLabel")
-	sLabel.Size = UDim2.new(1, -70, 0, 14)
-	sLabel.Position = UDim2.fromOffset(70, 16)
-	sLabel.Text = "CURRENT STATUS"
-	sLabel.TextColor3 = Configuration.Colors.TextMuted
-	sLabel.TextSize = 10
-	sLabel.Font = Enum.Font.GothamBold
-	sLabel.TextXAlignment = Enum.TextXAlignment.Left
-	sLabel.BackgroundTransparency = 1
-	sLabel.Parent = statusCard
-	local sValue = Instance.new("TextLabel")
-	sValue.Size = UDim2.new(1, -70, 0, 20)
-	sValue.Position = UDim2.fromOffset(70, 32)
-	sValue.Text = "No key detected"
-	sValue.TextColor3 = Configuration.Colors.StatusIdle
-	sValue.TextSize = 15
-	sValue.Font = Enum.Font.GothamMedium
-	sValue.TextXAlignment = Enum.TextXAlignment.Left
-	sValue.BackgroundTransparency = 1
-	sValue.Parent = statusCard
-	local inputFrame = Instance.new("Frame")
-	inputFrame.Size = UDim2.new(0, 280, 0, 52)
-	inputFrame.BackgroundColor3 = Color3.new(1, 1, 1)
-	inputFrame.BackgroundTransparency = 0.975
-	inputFrame.Parent = content
-	Utils.Round(inputFrame, 14)
-	local iStroke = Utils.Stroke(inputFrame, Color3.new(1, 1, 1), 1, 0.95)
-	local kIcon = Instance.new("ImageLabel")
-	kIcon.Size = UDim2.fromOffset(18, 18)
-	kIcon.Position = UDim2.new(0, 14, 0.5, 0)
-	kIcon.AnchorPoint = Vector2.new(0, 0.5)
-	kIcon.Image = Icons.Key
-	kIcon.ImageColor3 = Configuration.Colors.TextMuted
-	kIcon.BackgroundTransparency = 1
-	kIcon.Parent = inputFrame
-	local box = Instance.new("TextBox")
-	box.Size = UDim2.new(1, -85, 1, 0)
-	box.Position = UDim2.fromOffset(45, 0)
-	box.Text = ""
-	box.PlaceholderText = "Enter your key..."
-	box.TextColor3 = Color3.new(1, 1, 1)
-	box.TextSize = 14
-	box.Font = Enum.Font.Gotham
-	box.BackgroundTransparency = 1
-	box.TextXAlignment = Enum.TextXAlignment.Left
-	box.Parent = inputFrame
-	local paste = Instance.new("ImageButton")
-	paste.Size = UDim2.fromOffset(18, 18)
-	paste.Position = UDim2.new(1, -14, 0.5, 0)
-	paste.AnchorPoint = Vector2.new(1, 0.5)
-	paste.Image = Icons.Copy
-	paste.ImageColor3 = Configuration.Colors.TextMuted
-	paste.BackgroundTransparency = 1
-	paste.Parent = inputFrame
-	local btnRow = Instance.new("Frame")
-	btnRow.Size = UDim2.new(0, 280, 0, 50)
-	btnRow.BackgroundTransparency = 1
-	btnRow.Parent = content
-	local redeem = Instance.new("TextButton")
-	redeem.Size = UDim2.new(0.5, -8, 1, 0)
-	redeem.BackgroundColor3 = Configuration.Colors.Primary
-	redeem.Text = "Redeem"
-	redeem.TextColor3 = Color3.new(1, 1, 1)
-	redeem.Font = Enum.Font.GothamBold
-	redeem.TextSize = 14
-	redeem.AutoButtonColor = false
-	redeem.Parent = btnRow
-	Utils.Round(redeem, 14)
-	local getKey = Instance.new("TextButton")
-	getKey.Size = UDim2.new(0.5, -8, 1, 0)
-	getKey.Position = UDim2.new(0.5, 8, 0, 0)
-	getKey.BackgroundColor3 = Color3.new(1, 1, 1)
-	getKey.BackgroundTransparency = 0.955
-	getKey.Text = "Get Key"
-	getKey.TextColor3 = Color3.new(1, 1, 1)
-	getKey.Font = Enum.Font.GothamBold
-	getKey.TextSize = 14
-	getKey.AutoButtonColor = false
-	getKey.Parent = btnRow
-	Utils.Round(getKey, 14)
-	Utils.Stroke(getKey, Color3.new(1, 1, 1), 1, 0.94)
-	local function ApplyHover(btn)
-		local baseColor = btn.BackgroundColor3
-		btn.MouseEnter:Connect(
-			function()
-				Utils.Tween(
-					btn,
-					{
-						BackgroundColor3 = baseColor:Lerp(Color3.new(1, 1, 1), 0.1)
-					},
-					0.2
-				)
-				Utils.Tween(
-					btn,
-					{
-						Size = UDim2.new(btn.Size.X.Scale, btn.Size.X.Offset + 4, btn.Size.Y.Scale, btn.Size.Y.Offset + 2)
-					},
-					0.2
-				)
-			end
-		)
-		btn.MouseLeave:Connect(
-			function()
-				Utils.Tween(btn, {BackgroundColor3 = baseColor}, 0.2)
-				Utils.Tween(
-					btn,
-					{
-						Size = UDim2.new(btn.Size.X.Scale, btn.Size.X.Offset - 4, btn.Size.Y.Scale, btn.Size.Y.Offset - 2)
-					},
-					0.2
-				)
-			end
-		)
-	end
-	ApplyHover(redeem)
-	ApplyHover(getKey)
-	box.Focused:Connect(
-		function()
-			Utils.Tween(iStroke, {Transparency = 0.5, Thickness = 1.2}, 0.3)
-		end
-	)
-	box.FocusLost:Connect(
-		function()
-			Utils.Tween(iStroke, {Transparency = 0.95, Thickness = 1}, 0.3)
-		end
-	)
-	local spinConnection
-	local dotsThread
-	local function SetStatus(state)
-		if spinConnection then
-			spinConnection:Disconnect()
-			spinConnection = nil
-			sImg.Rotation = 0
-		end
-		if dotsThread then
-			task.cancel(dotsThread)
-			dotsThread = nil
-		end
-		local color = Configuration.Colors.StatusIdle
-		local icon = Icons.Lock
-		local text = "No key detected"
-		if state == "verifying" then
-			color = Configuration.Colors.StatusVerifying
-			icon = Icons.Loading
-			text = "Verifying access"
-			spinConnection =
-				RunService.Heartbeat:Connect(
-				function(dt)
-					if not sImg or not sImg.Parent then
-						if spinConnection then
-							spinConnection:Disconnect()
-						end
-						spinConnection = nil
-						return
-					end
-					sImg.Rotation = (sImg.Rotation + dt * 360) % 360
-				end
-			)
-			local dots = {".", "..", "...", ""}
-			local i = 1
-			dotsThread =
-				task.spawn(
-				function()
-					while sValue and sValue.Parent do
-						if not sValue.Text:find("Verifying access", 1, true) then
-							break
-						end
-						sValue.Text = text .. dots[i]
-						i = (i % #dots) + 1
-						task.wait(0.45)
-					end
-				end
-			)
-		elseif state == "success" then
-			color = Configuration.Colors.StatusSuccess
-			icon = Icons.CheckCircle
-			text = "Access Granted"
-		elseif state == "error" then
-			color = Configuration.Colors.StatusError
-			icon = Icons.XCircle
-			text = "Invalid Key"
-		end
-		Utils.Tween(sValue, {TextColor3 = color}, 0.35)
-		Utils.Tween(sImg, {ImageColor3 = color}, 0.35)
-		Utils.Tween(sIconBg, {BackgroundColor3 = color}, 0.35)
-		sValue.Text = text
-		sImg.Image = icon
-	end
-	redeem.MouseButton1Click:Connect(
-		function()
-			local key = (box.Text:gsub("%s+", "")) -- trim spaces; keep case (work.ink tokens are lowercase)
-			SetStatus("verifying")
-			redeem.Text = "..."
-			redeem.Active = false
-            local result = Junkie.check_key(key)
-			redeem.Active = true
-			redeem.Text = "Redeem"
-			if not result then
-				SetStatus("error")
-				ToastSystem.Create(screen, "API request failed: " .. tostring(result), "error")
-				return
-			end
-			if result.valid then
-                saveVerifiedKey(key)
-                getgenv().SCRIPT_KEY = key
-                SetStatus("success")
-                ToastSystem.Create(screen, "Access granted!", "success", nil, status)
-                task.wait(0.8)
-                SetBlur(false)
-                Utils.Tween(
-                    main,
-                    {
-                        Position = UDim2.new(0.5, 0, 0.5, 100),
-                        BackgroundTransparency = 1
-                    },
-                    0.7,
-                    Enum.EasingStyle.Exponential,
-                    Enum.EasingDirection.In
-                )
-                task.delay(
-                    0.7,
-                    function()
-                        screen:Destroy()
-                    end
-                )
-			else
-				SetStatus("error")
-				ToastSystem.Create(screen, result.message or "Invalid key", "error", nil, status)
-			end
-		end
-	)
-	getKey.MouseButton1Click:Connect(
-		function()
-			setclipboard(Junkie.get_key_link())
-			ToastSystem.Create(screen, "Key link has been copied to clipboard", "success")
-		end
-	)
-	paste.MouseButton1Click:Connect(
-		function()
-			ToastSystem.Create(screen, "Paste functionality not supported in Roblox (security reasons)", "warning")
-		end
-	)
-	main.Position = UDim2.new(0.5, 0, 0.5, 100)
-	main.BackgroundTransparency = 1
-	Utils.Tween(
-		main,
-		{
-			Position = UDim2.new(0.5, 0, 0.5, 0),
-			BackgroundTransparency = 0.2
-		},
-		1,
-		Enum.EasingStyle.Exponential
-	)
-	local dragging, dragStart, startPos
-	bar.InputBegan:Connect(
-		function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 then
-				dragging = true
-				dragStart = input.Position
-				startPos = main.Position
-			end
-		end
-	)
-	UserInputService.InputChanged:Connect(
-		function(input)
-			if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-				local delta = input.Position - dragStart
-				main.Position =
-					UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-			end
-		end
-	)
-	UserInputService.InputEnded:Connect(
-		function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 then
-				dragging = false
-			end
-		end
-	)
+	redeem.MouseEnter:Connect(function() Utils.Tween(redeem, { BackgroundColor3 = C.Accent:Lerp(Color3.new(1, 1, 1), 0.12) }, 0.15) end)
+	redeem.MouseLeave:Connect(function() Utils.Tween(redeem, { BackgroundColor3 = C.Accent }, 0.15) end)
+	getKey.MouseEnter:Connect(function() Utils.Tween(getKey, { BackgroundColor3 = Color3.fromRGB(38, 38, 44) }, 0.15) end)
+	getKey.MouseLeave:Connect(function() Utils.Tween(getKey, { BackgroundColor3 = C.Field }, 0.15) end)
+	closeBtn.MouseEnter:Connect(function() Utils.Tween(closeBtn, { BackgroundColor3 = Color3.fromRGB(220, 70, 80) }, 0.15) end)
+	closeBtn.MouseLeave:Connect(function() Utils.Tween(closeBtn, { BackgroundColor3 = C.Field }, 0.15) end)
+
+	local dragging, ds, sp
+	card.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = true; ds = i.Position; sp = card.Position end end)
+	UserInputService.InputChanged:Connect(function(i) if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - ds; card.Position = UDim2.new(sp.X.Scale, sp.X.Offset + d.X, sp.Y.Scale, sp.Y.Offset + d.Y) end end)
+	UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
+
+	card.BackgroundTransparency = 1; card.Position = UDim2.new(0.5, 0, 0.5, 60)
+	Utils.Tween(card, { BackgroundTransparency = 0, Position = UDim2.fromScale(0.5, 0.5) }, 0.45, Enum.EasingStyle.Quint)
+
 	return screen
 end
 

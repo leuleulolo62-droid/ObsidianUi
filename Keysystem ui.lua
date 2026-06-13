@@ -749,7 +749,7 @@ local function Build()
 	end
 	redeem.MouseButton1Click:Connect(
 		function()
-			local key = box.Text:upper()
+			local key = (box.Text:gsub("%s+", "")) -- trim spaces; keep case (work.ink tokens are lowercase)
 			SetStatus("verifying")
 			redeem.Text = "..."
 			redeem.Active = false

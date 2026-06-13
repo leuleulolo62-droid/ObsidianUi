@@ -1,7 +1,52 @@
-local Junkie = loadstring(game:HttpGet("https://jnkie.com/sdk/library.lua"))()
-Junkie.service = "Y2kScript"
-Junkie.identifier = "12840"
-Junkie.provider = "Y2kScript"
+-- ============================================================================
+--  Y2k key provider  (drop-in replacement for the Junkie SDK)
+--  Talks to YOUR Cloudflare Worker + KV key server (server-side hashing, HWID
+--  auto-bind, expiry). CONFIGURE the two URLs below. Server: server-example/.
+-- ============================================================================
+local Junkie = {}
+do
+	local KEY_API  = "https://y2k-keys.y2kscript.workers.dev"  -- your deployed Worker (LIVE)
+	local KEY_LINK = "https://work.ink/2Dgt/ks-int12887-kq76mlra7lo" -- work.ink key link
+
+	local HttpService = game:GetService("HttpService")
+	local function enc(s) local ok, r = pcall(function() return HttpService:UrlEncode(s) end) return ok and r or s end
+	local function httpGet(u)
+		for _, f in ipairs({
+			function() return game:HttpGetAsync(u) end,
+			function() return game:HttpGet(u) end,
+			function() return request and request({ Url = u, Method = "GET" }).Body end,
+		}) do
+			local ok, b = pcall(f); if ok and type(b) == "string" then return b end
+		end
+		return nil
+	end
+	local function hwid()
+		local id
+		pcall(function() id = (gethwid and gethwid()) or (get_hwid and get_hwid()) end)
+		if not id then pcall(function() id = game:GetService("RbxAnalyticsService"):GetClientId() end) end
+		return tostring(id or "unknown")
+	end
+
+	function Junkie.get_key_link() return KEY_LINK end
+	function Junkie.check_key(key)
+		if not key or key == "" then return { valid = false, message = "No key entered" } end
+		local hw = hwid()
+		local url = KEY_API .. "/check?key=" .. enc(key) .. "&hwid=" .. enc(hw) .. "&t=" .. tostring(os.time())
+		local body = httpGet(url)
+		if not body then return { valid = false, message = "Key server unreachable" } end
+		local b = string.lower(body)
+		if string.find(b, "ok", 1, true) then
+			getgenv().HWID = hw
+			return { valid = true, message = "KEY_VALID", hwid = hw }
+		elseif string.find(b, "expired", 1, true) then
+			return { valid = false, message = "Key expired" }
+		elseif string.find(b, "hwid", 1, true) then
+			return { valid = false, message = "Key locked to another device" }
+		else
+			return { valid = false, message = "Invalid key" }
+		end
+	end
+end
 
 
 local TweenService = game:GetService("TweenService")

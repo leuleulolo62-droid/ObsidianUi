@@ -1,0 +1,8 @@
+{
+  "_comment": "Your key database. Host this file (see options below) and point KEY_DB_URL at its RAW url. Each key: hwid ('' = no lock, or paste a device id to lock), expiry (0 = never, or a unix timestamp), note (your label).",
+  "keys": {
+    "TESTKEY-123": { "hwid": "", "expiry": 0, "note": "demo - no lock, never expires" },
+    "ALICE-7F3K-9D2P": { "hwid": "", "expiry": 1767225600, "note": "alice - expires 2026-01-01, locks to first device once you fill hwid" },
+    "BOB-LOCKED-EXAMPLE": { "hwid": "PASTE-BOBS-HWID-HERE", "expiry": 0, "note": "bob - locked to his device" }
+  }
+}

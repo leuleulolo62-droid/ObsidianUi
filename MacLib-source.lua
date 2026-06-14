@@ -674,29 +674,22 @@ function MacLib:Window(Settings)
 	licenseRowLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	licenseRowLayout.Parent = licenseRow
 
-	local licenseRing = Instance.new("Frame")
+	local licenseRing = Instance.new("Frame")  -- fixed slot so the row doesn't jump as it shrinks
 	licenseRing.Name = "Ring"
 	licenseRing.BackgroundTransparency = 1
-	licenseRing.Size = UDim2.fromOffset(11, 11)
+	licenseRing.Size = UDim2.fromOffset(13, 13)
 	licenseRing.Parent = licenseRow
-	local licenseRingCorner = Instance.new("UICorner")
-	licenseRingCorner.CornerRadius = UDim.new(1, 0)
-	licenseRingCorner.Parent = licenseRing
-	local licenseRingStroke = Instance.new("UIStroke")
-	licenseRingStroke.Thickness = 2
-	licenseRingStroke.Color = Color3.fromRGB(52, 199, 89)
-	licenseRingStroke.Parent = licenseRing
-	local licenseDot = Instance.new("Frame")
-	licenseDot.Name = "Dot"
-	licenseDot.AnchorPoint = Vector2.new(0.5, 0.5)
-	licenseDot.Position = UDim2.fromScale(0.5, 0.5)
-	licenseDot.Size = UDim2.fromOffset(4, 4)
-	licenseDot.BackgroundColor3 = Color3.fromRGB(52, 199, 89)
-	licenseDot.BorderSizePixel = 0
-	licenseDot.Parent = licenseRing
-	local licenseDotCorner = Instance.new("UICorner")
-	licenseDotCorner.CornerRadius = UDim.new(1, 0)
-	licenseDotCorner.Parent = licenseDot
+	local licenseCircle = Instance.new("Frame")  -- the circle; shrinks as time runs down
+	licenseCircle.Name = "Circle"
+	licenseCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+	licenseCircle.Position = UDim2.fromScale(0.5, 0.5)
+	licenseCircle.Size = UDim2.fromOffset(13, 13)
+	licenseCircle.BackgroundColor3 = Color3.fromRGB(52, 199, 89)
+	licenseCircle.BorderSizePixel = 0
+	licenseCircle.Parent = licenseRing
+	local licenseCircleCorner = Instance.new("UICorner")
+	licenseCircleCorner.CornerRadius = UDim.new(1, 0)
+	licenseCircleCorner.Parent = licenseCircle
 
 	local licenseText = Instance.new("TextLabel")
 	licenseText.Name = "Text"
@@ -713,16 +706,15 @@ function MacLib:Window(Settings)
 
 	local function setLicense(hours)
 		hours = tonumber(hours) or 0
+		local frac = math.clamp(hours / 48, 0, 1)  -- fraction of a full window left
 		local col
-		if hours > 24 then col = Color3.fromRGB(52, 199, 89)
-		elseif hours >= 6 then col = Color3.fromRGB(255, 196, 60)
-		else col = Color3.fromRGB(255, 80, 95) end
-		licenseRingStroke.Color = col
-		licenseDot.BackgroundColor3 = col
+		if frac > 0.5 then col = Color3.fromRGB(52, 199, 89)       -- full-ish: green
+		elseif frac > 0.1 then col = Color3.fromRGB(255, 196, 60)  -- middle: yellow
+		else col = Color3.fromRGB(255, 80, 95) end                 -- ~10%: red
+		licenseCircle.BackgroundColor3 = col
 		licenseText.TextColor3 = col
-		local frac = math.clamp(1 - math.min(hours, 48) / 48, 0, 1)
-		local s = 3 + frac * 6
-		licenseDot.Size = UDim2.fromOffset(s, s)
+		local s = math.floor(4 + frac * 9 + 0.5)  -- 13px full -> 4px nearly empty (decomposes)
+		licenseCircle.Size = UDim2.fromOffset(s, s)
 		if hours <= 0 then licenseText.Text = "expired"
 		elseif hours < 1 then licenseText.Text = math.floor(hours * 60) .. "m left"
 		else licenseText.Text = math.floor(hours) .. "h left" end

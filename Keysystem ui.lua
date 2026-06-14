@@ -402,6 +402,22 @@ local function Build()
 
 	SetBlur(true)
 
+	-- lock player movement + camera until a key is redeemed
+	local LP = game:GetService("Players").LocalPlayer
+	local _camType, _controls
+	pcall(function()
+		local cam = workspace.CurrentCamera
+		if cam then _camType = cam.CameraType; cam.CameraType = Enum.CameraType.Scriptable end
+	end)
+	pcall(function()
+		_controls = require(LP:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule")):GetControls()
+		_controls:Disable()
+	end)
+	local function _restore()
+		pcall(function() if _camType then workspace.CurrentCamera.CameraType = _camType end end)
+		pcall(function() if _controls then _controls:Enable() end end)
+	end
+
 	local C = {
 		Bg = Color3.fromRGB(11, 11, 13), Field = Color3.fromRGB(26, 26, 30),
 		Accent = Color3.fromRGB(91, 124, 255), Text = Color3.fromRGB(243, 243, 246),
@@ -480,11 +496,7 @@ local function Build()
 	getKey.AutoButtonColor = false; getKey.LayoutOrder = 6; getKey.Parent = content
 	corner(getKey, 11); hair(getKey, 0.9)
 
-	local closeBtn = Instance.new("TextButton")
-	closeBtn.Size = UDim2.fromOffset(26, 26); closeBtn.Position = UDim2.new(1, -16, 0, 16); closeBtn.AnchorPoint = Vector2.new(1, 0)
-	closeBtn.BackgroundColor3 = C.Field; closeBtn.Text = "\u{2715}"; closeBtn.TextColor3 = C.Sub
-	closeBtn.Font = Enum.Font.GothamBold; closeBtn.TextSize = 12; closeBtn.AutoButtonColor = false; closeBtn.ZIndex = 5; closeBtn.Parent = card
-	corner(closeBtn, 13); hair(closeBtn, 0.88)
+	-- (no close button: the key system can't be closed until a key is redeemed)
 
 	local function SetStatus(s)
 		if s == "verifying" then status.Text = "VERIFYING..."; status.TextColor3 = C.Accent
@@ -502,6 +514,7 @@ local function Build()
 		if result and result.valid then
 			saveVerifiedKey(key)
 			getgenv().SCRIPT_KEY = key
+			_restore()
 			SetStatus("success")
 			ToastSystem.Create(screen, "Access granted", "success")
 			task.wait(0.55)
@@ -517,14 +530,10 @@ local function Build()
 		pcall(function() setclipboard(Junkie.get_key_link()) end)
 		ToastSystem.Create(screen, "Key link copied to clipboard", "success")
 	end)
-	closeBtn.MouseButton1Click:Connect(function() SetBlur(false); screen:Destroy() end)
-
 	redeem.MouseEnter:Connect(function() Utils.Tween(redeem, { BackgroundColor3 = C.Accent:Lerp(Color3.new(1, 1, 1), 0.12) }, 0.15) end)
 	redeem.MouseLeave:Connect(function() Utils.Tween(redeem, { BackgroundColor3 = C.Accent }, 0.15) end)
 	getKey.MouseEnter:Connect(function() Utils.Tween(getKey, { BackgroundColor3 = Color3.fromRGB(38, 38, 44) }, 0.15) end)
 	getKey.MouseLeave:Connect(function() Utils.Tween(getKey, { BackgroundColor3 = C.Field }, 0.15) end)
-	closeBtn.MouseEnter:Connect(function() Utils.Tween(closeBtn, { BackgroundColor3 = Color3.fromRGB(220, 70, 80) }, 0.15) end)
-	closeBtn.MouseLeave:Connect(function() Utils.Tween(closeBtn, { BackgroundColor3 = C.Field }, 0.15) end)
 
 	local dragging, ds, sp
 	card.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = true; ds = i.Position; sp = card.Position end end)

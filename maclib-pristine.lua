@@ -1,4 +1,4 @@
-﻿local MacLib = { 
+local MacLib = { 
 	Options = {}, 
 	Folder = "Maclib", 
 	GetService = function(service)
@@ -45,166 +45,6 @@ local assets = {
 	sliderhead = "rbxassetid://18772834246",
 }
 
--- Y2k logo: hosted as PNG on your worker (Roblox can't render .webp). Downloaded
--- once and cached locally; falls back to the URL if the executor has no filesystem.
-local Y2K_LOGO_URL = "https://y2kscript.xyz/asset?name=logo"
-local _y2kLogoAsset
-local function GetLogoImage()
-	if _y2kLogoAsset then return _y2kLogoAsset end
-	if writefile and getcustomasset and isfile then
-		pcall(function()
-			if not isfile("y2k_logo.png") then writefile("y2k_logo.png", game:HttpGet(Y2K_LOGO_URL)) end
-			_y2kLogoAsset = getcustomasset("y2k_logo.png")
-		end)
-		if _y2kLogoAsset then return _y2kLogoAsset end
-	end
-	return Y2K_LOGO_URL
-end
-
--- Player avatar: rbxthumb fails on many executors, so fetch the real PNG via the
--- thumbnails API and cache it through getcustomasset (the method that works for the logo).
-local _y2kAvatars = {}
-local function Y2kGetAvatar(uid)
-	if _y2kAvatars[uid] then return _y2kAvatars[uid] end
-	local fallback = "rbxthumb://type=AvatarHeadShot&id=" .. uid .. "&w=150&h=150"
-	if writefile and getcustomasset and isfile then
-		pcall(function()
-			local fn = "y2k_av_" .. uid .. ".png"
-			if not isfile(fn) then
-				local api = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. uid .. "&size=150x150&format=Png&isCircular=false"
-				local data = game:GetService("HttpService"):JSONDecode(game:HttpGet(api))
-				local url = data and data.data and data.data[1] and data.data[1].imageUrl
-				if url then writefile(fn, game:HttpGet(url)) end
-			end
-			if isfile(fn) then _y2kAvatars[uid] = getcustomasset(fn) end
-		end)
-		if _y2kAvatars[uid] then return _y2kAvatars[uid] end
-	end
-	return fallback
-end
-
--- Generic icon loader (close/minimize/chevron/resize PNGs hosted on the worker).
-local _y2kIcons = {}
-local function GetY2kIcon(name)
-	if _y2kIcons[name] then return _y2kIcons[name] end
-	local url, fn = "https://y2kscript.xyz/asset?name=" .. name, "y2k_" .. name .. "_v4.png"
-	if writefile and getcustomasset and isfile then
-		pcall(function()
-			if not isfile(fn) then writefile(fn, game:HttpGet(url)) end
-			_y2kIcons[name] = getcustomasset(fn)
-		end)
-		if _y2kIcons[name] then return _y2kIcons[name] end
-	end
-	return url
-end
-MacLib.GetIcon = GetY2kIcon  -- exposed so the shim (Terminal) can reuse cached assets
-
--- ============ Y2k live theme system ============
--- Elements register a (object, property) pair under a role. Setting a role
--- recolors every registered object live. Roles: "Accent", "Background", "Text".
-local Y2kTheme = {
-	Accent = Color3.fromRGB(91, 124, 255),
-	Background = Color3.fromRGB(9, 9, 11),
-	Text = Color3.fromRGB(255, 255, 255),
-}
-local Y2kThemeReg = { Accent = {}, Background = {}, Text = {} }
-local Y2kThemeFns = {} -- list of functions called after any theme change (custom appliers)
-local function RegisterTheme(role, obj, prop)
-	if not Y2kThemeReg[role] then Y2kThemeReg[role] = {} end
-	pcall(function() obj[prop] = Y2kTheme[role] end)
-	table.insert(Y2kThemeReg[role], { obj, prop })
-end
-local function ApplyTheme(role)
-	for _, e in ipairs(Y2kThemeReg[role] or {}) do
-		pcall(function() e[1][e[2]] = Y2kTheme[role] end)
-	end
-	for _, fn in ipairs(Y2kThemeFns) do pcall(fn, role) end
-end
-local function SetTheme(role, color)
-	Y2kTheme[role] = color
-	ApplyTheme(role)
-end
-MacLib.Theme = Y2kTheme
-MacLib.NotifySound = true
-MacLib.NotifySoundId = "rbxassetid://9118823106"
-function MacLib:SetThemeColor(role, color) SetTheme(role, color) end
-MacLib.ThemePresets = {
-	["Y2k"]      = { Accent = Color3.fromRGB(91, 124, 255),  Background = Color3.fromRGB(9, 9, 11),   Text = Color3.fromRGB(255, 255, 255) },
-	["Midnight"] = { Accent = Color3.fromRGB(99, 102, 241),  Background = Color3.fromRGB(12, 12, 18),  Text = Color3.fromRGB(230, 230, 240) },
-	["Cyber"]    = { Accent = Color3.fromRGB(0, 229, 200),    Background = Color3.fromRGB(8, 12, 14),   Text = Color3.fromRGB(220, 240, 238) },
-	["Mono"]     = { Accent = Color3.fromRGB(170, 174, 186),  Background = Color3.fromRGB(14, 14, 16),  Text = Color3.fromRGB(235, 235, 238) },
-	["Sunset"]   = { Accent = Color3.fromRGB(255, 120, 90),   Background = Color3.fromRGB(18, 12, 14),  Text = Color3.fromRGB(245, 235, 232) },
-	["Neon"]     = { Accent = Color3.fromRGB(255, 60, 160),   Background = Color3.fromRGB(10, 8, 14),   Text = Color3.fromRGB(245, 235, 245) },
-}
-MacLib.ThemePresetOrder = { "Y2k", "Midnight", "Cyber", "Mono", "Sunset", "Neon" }
-function MacLib:ApplyThemePreset(name)
-	local pset = MacLib.ThemePresets[name]
-	if not pset then return false end
-	for _, role in ipairs({ "Accent", "Background", "Text" }) do
-		if pset[role] then SetTheme(role, pset[role]) end
-	end
-	return pset
-end
-
--- Inline SV + hue color panel. host must have AutomaticSize Y; clicking swatchBtn toggles it.
-local function Y2kColorPanel(host, swatchBtn, default, callback, yOffset)
-	local hue, sat, val = 0, 1, 1
-	local alpha = 0
-	do local b = default or Color3.new(1, 1, 1); hue, sat, val = Color3.new(b.R, b.G, b.B):ToHSV() end
-	local panel = Instance.new("Frame")
-	panel.Name = "Y2kColorPanel"; panel.BackgroundColor3 = Color3.fromRGB(9, 9, 11); panel.BorderSizePixel = 0
-	panel.Position = UDim2.new(0, 0, 0, yOffset or 44); panel.Size = UDim2.new(1, 0, 0, 152); panel.ZIndex = 8; panel.Visible = false; panel.Parent = host
-	local pc = Instance.new("UICorner") pc.CornerRadius = UDim.new(0, 10) pc.Parent = panel
-	local ps = Instance.new("UIStroke") ps.Color = Color3.fromRGB(255, 255, 255) ps.Transparency = 0.9 ps.Parent = panel
-	local pp = Instance.new("UIPadding") pp.PaddingTop = UDim.new(0, 11) pp.PaddingBottom = UDim.new(0, 11) pp.PaddingLeft = UDim.new(0, 11) pp.PaddingRight = UDim.new(0, 11) pp.Parent = panel
-	local square = Instance.new("Frame") square.Size = UDim2.new(1, -52, 1, 0) square.BackgroundColor3 = Color3.fromHSV(hue, 1, 1) square.BorderSizePixel = 0 square.ZIndex = 9 square.Parent = panel
-	local sqc = Instance.new("UICorner") sqc.CornerRadius = UDim.new(0, 8) sqc.Parent = square
-	local satO = Instance.new("Frame") satO.BackgroundColor3 = Color3.new(1, 1, 1) satO.Size = UDim2.fromScale(1, 1) satO.BorderSizePixel = 0 satO.ZIndex = 10 satO.Parent = square
-	local satC = Instance.new("UICorner") satC.CornerRadius = UDim.new(0, 8) satC.Parent = satO
-	local satG = Instance.new("UIGradient") satG.Color = ColorSequence.new(Color3.new(1, 1, 1)) satG.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }) satG.Parent = satO
-	local valO = Instance.new("Frame") valO.BackgroundColor3 = Color3.new(0, 0, 0) valO.Size = UDim2.fromScale(1, 1) valO.BorderSizePixel = 0 valO.ZIndex = 11 valO.Parent = square
-	local valC = Instance.new("UICorner") valC.CornerRadius = UDim.new(0, 8) valC.Parent = valO
-	local valG = Instance.new("UIGradient") valG.Rotation = 90 valG.Color = ColorSequence.new(Color3.new(0, 0, 0)) valG.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0) }) valG.Parent = valO
-	local dot = Instance.new("Frame") dot.Size = UDim2.fromOffset(11, 11) dot.AnchorPoint = Vector2.new(0.5, 0.5) dot.BackgroundColor3 = Color3.new(1, 1, 1) dot.BorderSizePixel = 0 dot.ZIndex = 13 dot.Parent = square
-	local dotc = Instance.new("UICorner") dotc.CornerRadius = UDim.new(1, 0) dotc.Parent = dot
-	local dots = Instance.new("UIStroke") dots.Color = Color3.new(0, 0, 0) dots.Thickness = 1.5 dots.Transparency = 0.45 dots.Parent = dot
-	local hueBar = Instance.new("Frame") hueBar.Size = UDim2.new(0, 16, 1, 0) hueBar.Position = UDim2.new(1, -16, 0, 0) hueBar.BorderSizePixel = 0 hueBar.ZIndex = 9 hueBar.Parent = panel
-	local hc = Instance.new("UICorner") hc.CornerRadius = UDim.new(0, 6) hc.Parent = hueBar
-	local hg = Instance.new("UIGradient") hg.Rotation = 90 hg.Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.fromHSV(0, 1, 1)), ColorSequenceKeypoint.new(0.17, Color3.fromHSV(0.17, 1, 1)), ColorSequenceKeypoint.new(0.33, Color3.fromHSV(0.33, 1, 1)), ColorSequenceKeypoint.new(0.5, Color3.fromHSV(0.5, 1, 1)), ColorSequenceKeypoint.new(0.67, Color3.fromHSV(0.67, 1, 1)), ColorSequenceKeypoint.new(0.83, Color3.fromHSV(0.83, 1, 1)), ColorSequenceKeypoint.new(1, Color3.fromHSV(1, 1, 1)) }) hg.Parent = hueBar
-	local hm = Instance.new("Frame") hm.Size = UDim2.new(1, 4, 0, 3) hm.AnchorPoint = Vector2.new(0.5, 0.5) hm.Position = UDim2.fromScale(0.5, 0) hm.BackgroundColor3 = Color3.new(1, 1, 1) hm.BorderSizePixel = 0 hm.ZIndex = 10 hm.Parent = hueBar
-	local hmc = Instance.new("UICorner") hmc.CornerRadius = UDim.new(1, 0) hmc.Parent = hm
-	local alphaBar = Instance.new("ImageLabel") alphaBar.Name = "Alpha" alphaBar.Image = assets.grid alphaBar.ScaleType = Enum.ScaleType.Tile alphaBar.TileSize = UDim2.fromOffset(10, 10) alphaBar.ImageColor3 = Color3.fromRGB(150, 150, 150) alphaBar.ImageTransparency = 0.2 alphaBar.BackgroundColor3 = Color3.fromRGB(30, 30, 34) alphaBar.Size = UDim2.new(0, 16, 1, 0) alphaBar.Position = UDim2.new(1, -42, 0, 0) alphaBar.BorderSizePixel = 0 alphaBar.ZIndex = 9 alphaBar.Parent = panel
-	local alphaC = Instance.new("UICorner") alphaC.CornerRadius = UDim.new(0, 6) alphaC.Parent = alphaBar
-	local alphaFill = Instance.new("Frame") alphaFill.Size = UDim2.fromScale(1, 1) alphaFill.BorderSizePixel = 0 alphaFill.BackgroundColor3 = Color3.fromHSV(hue, sat, val) alphaFill.ZIndex = 10 alphaFill.Parent = alphaBar
-	local alphaFC = Instance.new("UICorner") alphaFC.CornerRadius = UDim.new(0, 6) alphaFC.Parent = alphaFill
-	local alphaG = Instance.new("UIGradient") alphaG.Rotation = 90 alphaG.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }) alphaG.Parent = alphaFill
-	local am = Instance.new("Frame") am.Name = "AlphaMarker" am.Size = UDim2.new(1, 4, 0, 3) am.AnchorPoint = Vector2.new(0.5, 0.5) am.Position = UDim2.fromScale(0.5, 0) am.BackgroundColor3 = Color3.new(1, 1, 1) am.BorderSizePixel = 0 am.ZIndex = 11 am.Parent = alphaBar
-	local amc = Instance.new("UICorner") amc.CornerRadius = UDim.new(1, 0) amc.Parent = am
-	local function apply(fire)
-		local col = Color3.fromHSV(hue, sat, val)
-		square.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
-		swatchBtn.BackgroundColor3 = col
-		swatchBtn.BackgroundTransparency = alpha
-		alphaFill.BackgroundColor3 = col
-		am.Position = UDim2.fromScale(0.5, alpha)
-		dot.Position = UDim2.fromScale(sat, 1 - val)
-		hm.Position = UDim2.fromScale(0.5, hue)
-		if fire and callback then task.spawn(function() pcall(callback, col, alpha) end) end
-	end
-	apply(false)
-	local dS, dH, dA = false, false, false
-	local function uSV(px, py) sat = math.clamp((px - square.AbsolutePosition.X) / math.max(1, square.AbsoluteSize.X), 0, 1) val = 1 - math.clamp((py - square.AbsolutePosition.Y) / math.max(1, square.AbsoluteSize.Y), 0, 1) apply(true) end
-	local function uH(py) hue = math.clamp((py - hueBar.AbsolutePosition.Y) / math.max(1, hueBar.AbsoluteSize.Y), 0, 1) apply(true) end
-	local function uA(py) alpha = math.clamp((py - alphaBar.AbsolutePosition.Y) / math.max(1, alphaBar.AbsoluteSize.Y), 0, 1) apply(true) end
-	square.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dS = true uSV(i.Position.X, i.Position.Y) end end)
-	hueBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dH = true uH(i.Position.Y) end end)
-	alphaBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dA = true uA(i.Position.Y) end end)
-	UserInputService.InputChanged:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch then if dS then uSV(i.Position.X, i.Position.Y) end if dH then uH(i.Position.Y) end if dA then uA(i.Position.Y) end end end)
-	UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dS = false dH = false dA = false end end)
-	local open = false
-	swatchBtn.MouseButton1Click:Connect(function() open = not open; panel.Visible = open end)
-end
-
 --// Functions
 local function GetGui()
 	local newGui = Instance.new("ScreenGui")
@@ -213,290 +53,18 @@ local function GetGui()
 	newGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	newGui.DisplayOrder = 2147483647
 
-	-- Fallback chain so the GUI parents on as many executors as possible.
-	local parent
-	pcall(function()
-		if RunService:IsStudio() and LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui") then
-			parent = LocalPlayer.PlayerGui
-		elseif typeof(gethui) == "function" then
-			parent = gethui()
-		elseif syn and typeof(syn.protect_gui) == "function" then
-			syn.protect_gui(newGui)
-			parent = cloneref and cloneref(MacLib.GetService("CoreGui")) or MacLib.GetService("CoreGui")
-		elseif typeof(protectgui) == "function" then
-			protectgui(newGui)
-			parent = MacLib.GetService("CoreGui")
-		elseif cloneref then
-			parent = cloneref(MacLib.GetService("CoreGui"))
-		else
-			parent = MacLib.GetService("CoreGui")
-		end
-	end)
-	if not parent then
-		parent = (LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")) or MacLib.GetService("CoreGui")
-	end
-	if not pcall(function() newGui.Parent = parent end) then
-		pcall(function() newGui.Parent = (LocalPlayer and LocalPlayer:WaitForChild("PlayerGui", 5)) end)
-	end
+	local parent = RunService:IsStudio() 
+		and LocalPlayer:FindFirstChild("PlayerGui")
+		or (gethui and gethui())
+		or (cloneref and cloneref(MacLib.GetService("CoreGui")) or MacLib.GetService("CoreGui"))
+
+	newGui.Parent = parent
 	return newGui
 end
 
 local function Tween(instance, tweeninfo, propertytable)
 	return TweenService:Create(instance, tweeninfo, propertytable)
 end
-
-local Y2kExtraGuis = {}
--- Hover tooltips: transparent background, text-only (with a stroke for legibility), follows the cursor.
-local Y2kTipLabel
-local function Y2kEnsureTip()
-	if Y2kTipLabel and Y2kTipLabel.Parent then return end
-	local ok, sg = pcall(GetGui)
-	if not ok or not sg then return end
-	sg.Name = "Y2kTooltip"
-	table.insert(Y2kExtraGuis, sg)
-	local lbl = Instance.new("TextLabel")
-	lbl.Name = "Tip" lbl.BackgroundTransparency = 1 lbl.AutomaticSize = Enum.AutomaticSize.XY
-	lbl.FontFace = Font.new(assets.interFont, Enum.FontWeight.Medium, Enum.FontStyle.Normal)
-	lbl.TextSize = 12 lbl.TextColor3 = Color3.fromRGB(238, 238, 244)
-	lbl.TextXAlignment = Enum.TextXAlignment.Left lbl.TextYAlignment = Enum.TextYAlignment.Top
-	lbl.Visible = false lbl.ZIndex = 60 lbl.Parent = sg
-	local st = Instance.new("UIStroke") st.Color = Color3.fromRGB(0, 0, 0) st.Thickness = 1.6 st.Transparency = 0.25 st.Parent = lbl
-	Y2kTipLabel = lbl
-end
-local function Y2kAttachTooltip(obj, text)
-	if not text or text == "" then return end
-	obj.MouseEnter:Connect(function()
-		Y2kEnsureTip()
-		if Y2kTipLabel then Y2kTipLabel.Text = text Y2kTipLabel.Visible = true end
-	end)
-	obj.MouseMoved:Connect(function(x, y)
-		if Y2kTipLabel and Y2kTipLabel.Visible then Y2kTipLabel.Position = UDim2.fromOffset(x + 16, y + 14) end
-	end)
-	obj.MouseLeave:Connect(function()
-		if Y2kTipLabel then Y2kTipLabel.Visible = false end
-	end)
-end
-local Y2kWaveImages = {}
-local Y2kWaveLayers = {}
-MacLib.WaveColor = Color3.fromRGB(91, 124, 255)
-MacLib.Waves = true
-MacLib.WaveSpeed = 1
-MacLib.WaveDirection = "Straight"
-MacLib.BackgroundAnim = "Grid"
-MacLib.BackgroundAnimOptions = { "Waves", "Bubbles", "Rain", "Stars", "Grid", "Aurora", "None" }
-local Y2kWaveRebuilders = {}
--- callbacks fired whenever the background preset / FX colour changes (so extra
--- surfaces like the Terminal can re-tint themselves to match).
-MacLib._bgCallbacks = {}
-local function Y2kFireBg() for _, f in ipairs(MacLib._bgCallbacks) do pcall(f) end end
--- Outline + UI background controls (operate on the live window, stored at build time)
-MacLib.OutlineEnabled = false
-MacLib.OutlineColor = Color3.fromRGB(91, 124, 255)
-function MacLib:SetOutline(state)
-	MacLib.OutlineEnabled = state and true or false
-	if MacLib._outline then pcall(function() MacLib._outline.Enabled = MacLib.OutlineEnabled end) end
-	if MacLib._outlineGlow then pcall(function() MacLib._outlineGlow.Visible = MacLib.OutlineEnabled end) end
-end
-function MacLib:SetOutlineColor(c)
-	MacLib.OutlineColor = c
-	if MacLib._outline then pcall(function() MacLib._outline.Color = c end) end
-	if MacLib._outlineGlow then pcall(function() MacLib._outlineGlow.ImageColor3 = c end) end
-end
-function MacLib:SetUIBackgroundColor(c)
-	MacLib.UIBackgroundColor = c
-	if MacLib._base then pcall(function() MacLib._base.BackgroundColor3 = c end) end
-	SetTheme("Background", c)
-end
-MacLib.BackgroundPresets = {
-	["Y2k Dark"] = Color3.fromRGB(9, 9, 11),
-	["Graphite"] = Color3.fromRGB(20, 20, 24),
-	["Navy"] = Color3.fromRGB(10, 14, 26),
-	["Deep Teal"] = Color3.fromRGB(8, 18, 20),
-	["Plum"] = Color3.fromRGB(18, 10, 22),
-	["True Black"] = Color3.fromRGB(0, 0, 0),
-}
-MacLib.BackgroundPresetOrder = { "Y2k Dark", "Graphite", "Navy", "Deep Teal", "Plum", "True Black" }
-MacLib.AccentPresets = {
-	["Blue"] = Color3.fromRGB(91, 124, 255), ["Cyan"] = Color3.fromRGB(0, 229, 200), ["Violet"] = Color3.fromRGB(150, 100, 255),
-	["Pink"] = Color3.fromRGB(255, 80, 170), ["Green"] = Color3.fromRGB(64, 214, 124), ["Orange"] = Color3.fromRGB(255, 140, 70), ["Red"] = Color3.fromRGB(255, 80, 95),
-}
-MacLib.AccentPresetOrder = { "Blue", "Cyan", "Violet", "Pink", "Green", "Orange", "Red" }
-function MacLib:SetWaveColor(c)
-	MacLib.WaveColor = c
-	for _, r in ipairs(Y2kWaveRebuilders) do pcall(r) end
-	Y2kFireBg()
-end
-function MacLib:SetWaves(state)
-	MacLib.Waves = state and true or false
-	for _, l in ipairs(Y2kWaveLayers) do pcall(function() l.Visible = MacLib.Waves end) end
-end
-function MacLib:SetWaveSpeed(n)
-	MacLib.WaveSpeed = math.clamp(tonumber(n) or 1, 0.1, 6)
-	for _, r in ipairs(Y2kWaveRebuilders) do pcall(r) end
-end
-function MacLib:SetWaveDirection(d)
-	MacLib.WaveDirection = d
-	for _, r in ipairs(Y2kWaveRebuilders) do pcall(r) end
-end
-function MacLib:SetBackgroundAnim(name)
-	MacLib.BackgroundAnim = name
-	for _, r in ipairs(Y2kWaveRebuilders) do pcall(r) end
-	Y2kFireBg()
-end
--- Floating logo button (mobile / no-keyboard): tap = toggle UI, drag = reposition.
-local function Y2kMobileButton(toggle)
-	local ok, sg = pcall(GetGui)
-	if not ok or not sg then return end
-	sg.Name = "Y2kMobile"
-	table.insert(Y2kExtraGuis, sg)
-	local btn = Instance.new("ImageButton")
-	btn.Name = "Y2kMobileBtn"
-	btn.Size = UDim2.fromOffset(44, 44)
-	btn.Position = UDim2.new(0, 16, 0, 120)
-	btn.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
-	btn.AutoButtonColor = false
-	btn.Image = GetLogoImage()
-	btn.ImageTransparency = 0.04
-	btn.ZIndex = 20
-	btn.Parent = sg
-	do
-		local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, 12) c.Parent = btn
-		local st = Instance.new("UIStroke") st.Color = Y2kTheme.Accent st.Transparency = 0.4 st.Parent = btn
-		RegisterTheme("Accent", st, "Color")
-	end
-	local dragging, moved, startMouse, startPos
-	btn.InputBegan:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-			dragging, moved, startMouse, startPos = true, false, i.Position, btn.Position
-			i.Changed:Connect(function()
-				if i.UserInputState == Enum.UserInputState.End then
-					dragging = false
-					if not moved then pcall(toggle) end
-				end
-			end)
-		end
-	end)
-	UserInputService.InputChanged:Connect(function(i)
-		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-			local d = i.Position - startMouse
-			if d.Magnitude > 4 then moved = true end
-			btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
-		end
-	end)
-	return btn
-end
-MacLib.MobileButton = true
-
--- Live keybind list (floating). Keybind components register an entry; rows update on a loop.
-local Y2kBinds = {}
-local Y2kBindsRefresh
-local function Y2kRegisterBind(entry)
-	table.insert(Y2kBinds, entry)
-	if Y2kBindsRefresh then Y2kBindsRefresh() end
-end
-local function Y2kKeybindPanel()
-	local ok, sg = pcall(GetGui)
-	if not ok or not sg then return end
-	sg.Name = "Y2kKeybinds"
-	table.insert(Y2kExtraGuis, sg)
-	local panel = Instance.new("Frame")
-	panel.Name = "KeybindPanel"
-	panel.Position = UDim2.new(0, 16, 0, 220)
-	panel.Size = UDim2.fromOffset(170, 0)
-	panel.AutomaticSize = Enum.AutomaticSize.Y
-	panel.BackgroundColor3 = Y2kTheme.Background
-	panel.BackgroundTransparency = 0.08
-	panel.BorderSizePixel = 0
-	panel.ZIndex = 15
-	panel.Visible = false
-	panel.Parent = sg
-	RegisterTheme("Background", panel, "BackgroundColor3")
-	do
-		local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, 10) c.Parent = panel
-		local st = Instance.new("UIStroke") st.Color = Y2kTheme.Accent st.Transparency = 0.45 st.Parent = panel
-		RegisterTheme("Accent", st, "Color")
-		local sg2 = Instance.new("UIGradient") sg2.Rotation = 90
-		sg2.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 0.8) }) sg2.Parent = st
-		local bg = Instance.new("UIGradient") bg.Rotation = 90
-		bg.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(208, 210, 224)) bg.Parent = panel
-		local pad = Instance.new("UIPadding")
-		pad.PaddingTop = UDim.new(0, 8) pad.PaddingBottom = UDim.new(0, 8)
-		pad.PaddingLeft = UDim.new(0, 10) pad.PaddingRight = UDim.new(0, 10) pad.Parent = panel
-		local lay = Instance.new("UIListLayout")
-		lay.Padding = UDim.new(0, 5) lay.SortOrder = Enum.SortOrder.LayoutOrder lay.Parent = panel
-		local header = Instance.new("TextLabel")
-		header.LayoutOrder = 0 header.BackgroundTransparency = 1 header.Size = UDim2.new(1, 0, 0, 14)
-		header.FontFace = Font.new(assets.interFont, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
-		header.TextSize = 12 header.TextColor3 = Y2kTheme.Accent header.TextXAlignment = Enum.TextXAlignment.Left
-		header.Text = "KEYBINDS" header.ZIndex = 16 header.Parent = panel
-		RegisterTheme("Accent", header, "TextColor3")
-		local underline = Instance.new("Frame")
-		underline.LayoutOrder = 0.5 underline.BackgroundColor3 = Y2kTheme.Accent underline.BackgroundTransparency = 0.5
-		underline.BorderSizePixel = 0 underline.Size = UDim2.new(1, 0, 0, 1) underline.ZIndex = 16 underline.Parent = panel
-		RegisterTheme("Accent", underline, "BackgroundColor3")
-	end
-	do  -- premium: drag the keybind panel anywhere
-		local dr, dStart, pStart
-		panel.Active = true
-		panel.InputBegan:Connect(function(i)
-			if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-				dr, dStart, pStart = true, i.Position, panel.Position
-				i.Changed:Connect(function() if i.UserInputState == Enum.UserInputState.End then dr = false end end)
-			end
-		end)
-		UserInputService.InputChanged:Connect(function(i)
-			if dr and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-				local d = i.Position - dStart
-				panel.Position = UDim2.new(pStart.X.Scale, pStart.X.Offset + d.X, pStart.Y.Scale, pStart.Y.Offset + d.Y)
-			end
-		end)
-	end
-	local rows = {}
-	Y2kBindsRefresh = function()
-		for idx, b in ipairs(Y2kBinds) do
-			if not rows[idx] then
-				local row = Instance.new("Frame")
-				row.BackgroundTransparency = 1 row.Size = UDim2.new(1, 0, 0, 15) row.LayoutOrder = idx
-				row.ZIndex = 16 row.Parent = panel
-				local dot = Instance.new("Frame")
-				dot.AnchorPoint = Vector2.new(0, 0.5) dot.Position = UDim2.new(0, 0, 0.5, 0)
-				dot.Size = UDim2.fromOffset(6, 6) dot.BackgroundColor3 = Color3.fromRGB(120, 120, 130)
-				dot.BorderSizePixel = 0 dot.ZIndex = 17 dot.Parent = row
-				local dc = Instance.new("UICorner") dc.CornerRadius = UDim.new(1, 0) dc.Parent = dot
-				local nm = Instance.new("TextLabel")
-				nm.BackgroundTransparency = 1 nm.Position = UDim2.new(0, 12, 0, 0) nm.Size = UDim2.new(1, -54, 1, 0)
-				nm.FontFace = Font.new(assets.interFont, Enum.FontWeight.Medium, Enum.FontStyle.Normal) nm.TextSize = 11
-				nm.TextColor3 = Color3.fromRGB(235, 235, 240) nm.TextXAlignment = Enum.TextXAlignment.Left
-				nm.TextTruncate = Enum.TextTruncate.AtEnd nm.ZIndex = 17 nm.Parent = row
-				local ky = Instance.new("TextLabel")
-				ky.AnchorPoint = Vector2.new(1, 0) ky.BackgroundTransparency = 1 ky.Position = UDim2.new(1, 0, 0, 0) ky.Size = UDim2.new(0, 48, 1, 0)
-				ky.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold, Enum.FontStyle.Normal) ky.TextSize = 11
-				ky.TextColor3 = Color3.fromRGB(180, 180, 190) ky.TextXAlignment = Enum.TextXAlignment.Right
-				ky.ZIndex = 17 ky.Parent = row
-				rows[idx] = { dot = dot, nm = nm, ky = ky }
-			end
-			rows[idx].nm.Text = b.name or "Bind"
-		end
-		panel.Visible = #Y2kBinds > 0
-	end
-	task.spawn(function()
-		while panel and panel.Parent do
-			for idx, b in ipairs(Y2kBinds) do
-				local r = rows[idx]
-				if r then
-					if b.getKey then r.ky.Text = b.getKey() end
-					if b.getState then
-						r.dot.BackgroundColor3 = b.getState() and Y2kTheme.Accent or Color3.fromRGB(120, 120, 130)
-					end
-				end
-			end
-			task.wait(0.2)
-		end
-	end)
-	Y2kBindsRefresh()
-	return panel
-end
-MacLib.KeybindList = true
 
 --// Library Functions
 function MacLib:Window(Settings)
@@ -527,7 +95,6 @@ function MacLib:Window(Settings)
 	notificationsUIListLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	notificationsUIListLayout.Parent = notifications
 
-	do
 	local notificationsUIPadding = Instance.new("UIPadding")
 	notificationsUIPadding.Name = "NotificationsUIPadding"
 	notificationsUIPadding.PaddingBottom = UDim.new(0, 10)
@@ -536,198 +103,31 @@ function MacLib:Window(Settings)
 	notificationsUIPadding.PaddingTop = UDim.new(0, 10)
 	notificationsUIPadding.Parent = notifications
 
-	end
 	local base = Instance.new("Frame")
 	base.Name = "Base"
 	base.AnchorPoint = Vector2.new(0.5, 0.5)
-	base.BackgroundColor3 = MacLib.UIBackgroundColor or Color3.fromRGB(9, 9, 11)
-	MacLib._base = base
-	RegisterTheme("Background", base, "BackgroundColor3")
+	base.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 	base.BackgroundTransparency = Settings.AcrylicBlur and 0.05 or 0
 	base.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	base.BorderSizePixel = 0
 	base.Position = UDim2.fromScale(0.5, 0.5)
 	base.Size = Settings.Size or UDim2.fromOffset(868, 650)
 
-	do  -- premium: soft drop shadow behind the window (sibling z-order keeps it under base, follows drag)
-		local shadow = Instance.new("ImageLabel")
-		shadow.Name = "DropShadow"
-		shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-		shadow.Position = UDim2.new(0.5, 0, 0.5, 10)
-		shadow.Size = UDim2.new(1, 96, 1, 96)
-		shadow.BackgroundTransparency = 1
-		shadow.Image = GetY2kIcon("shadow")
-		shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-		shadow.ImageTransparency = 0.45
-		shadow.ScaleType = Enum.ScaleType.Slice
-		shadow.SliceCenter = Rect.new(246, 246, 266, 266)
-		shadow.ZIndex = 0
-		shadow.Parent = base
-	end
-
-	do  -- animated background (waves/bubbles/rain/stars/grid); clipped so nothing escapes the window
-		local bgLayer = Instance.new("Frame")
-		bgLayer.Name = "BgLayer" bgLayer.BackgroundTransparency = 1 bgLayer.Size = UDim2.fromScale(1, 1)
-		bgLayer.ClipsDescendants = true bgLayer.ZIndex = 1 bgLayer.Visible = MacLib.Waves ~= false bgLayer.Parent = base
-		local bgCorner = Instance.new("UICorner") bgCorner.CornerRadius = UDim.new(0, 12) bgCorner.Parent = bgLayer
-		table.insert(Y2kWaveLayers, bgLayer)
-		local rng = Random.new()
-		local function loopT(obj, time, props, delay0)
-			local tw = Tween(obj, TweenInfo.new(time, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), props)
-			if delay0 and delay0 > 0 then task.delay(delay0, function() if obj.Parent then tw:Play() end end) else tw:Play() end
-		end
-		local function rebuild()
-			for _, ch in ipairs(bgLayer:GetChildren()) do ch:Destroy() end
-			local mode = MacLib.BackgroundAnim or "Waves"
-			local col = MacLib.WaveColor
-			local spd = math.clamp(tonumber(MacLib.WaveSpeed) or 1, 0.1, 6)
-			if mode == "None" then return end
-			if mode == "Waves" then
-				local rot = 0
-				local specs = { {0.34, 66, 0.86, 5}, {0.62, 60, 0.88, 7}, {0.92, 70, 0.85, 6} }
-				for _, sp in ipairs(specs) do
-					local holder = Instance.new("Frame")
-					holder.BackgroundTransparency = 1 holder.AnchorPoint = Vector2.new(0, 1)
-					holder.Position = UDim2.new(0, 0, sp[1], 0) holder.Size = UDim2.new(2, 0, 0, sp[2]) holder.Rotation = rot holder.ZIndex = 1 holder.Parent = bgLayer
-					local img = Instance.new("ImageLabel")
-					img.BackgroundTransparency = 1 img.Size = UDim2.fromScale(1, 1) img.Image = GetY2kIcon("wave")
-					img.ImageColor3 = col img.ImageTransparency = sp[3] img.ScaleType = Enum.ScaleType.Tile
-					img.TileSize = UDim2.new(0.5, 0, 1, 0) img.ZIndex = 1 img.Parent = holder
-					loopT(holder, sp[4] / spd, { Position = UDim2.new(-1, 0, sp[1], 0) })
-					Tween(img, TweenInfo.new(2.2 + rng:NextNumber(0, 1.4), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Position = UDim2.new(0, 0, 0, rng:NextInteger(3, 7)) }):Play()
-				end
-			elseif mode == "Bubbles" then
-				for k = 1, 11 do
-					local sz = rng:NextInteger(8, 22) local x = rng:NextNumber(0.04, 0.95)
-					local b = Instance.new("Frame")
-					b.AnchorPoint = Vector2.new(0.5, 0.5) b.Position = UDim2.new(x, 0, 1.12, 0) b.Size = UDim2.fromOffset(sz, sz)
-					b.BackgroundColor3 = col b.BackgroundTransparency = 0.82 b.BorderSizePixel = 0 b.ZIndex = 1 b.Parent = bgLayer
-					local c = Instance.new("UICorner") c.CornerRadius = UDim.new(1, 0) c.Parent = b
-					local st = Instance.new("UIStroke") st.Color = col st.Transparency = 0.55 st.Parent = b
-					loopT(b, (6 + rng:NextNumber(0, 4)) / spd, { Position = UDim2.new(x, 0, -0.15, 0) }, rng:NextNumber(0, 5))
-				end
-			elseif mode == "Rain" then
-				for k = 1, 18 do
-					local x = rng:NextNumber(0, 1)
-					local r = Instance.new("Frame")
-					r.AnchorPoint = Vector2.new(0.5, 0) r.Position = UDim2.new(x, 0, -0.12, 0) r.Size = UDim2.fromOffset(2, rng:NextInteger(14, 30))
-					r.BackgroundColor3 = col r.BackgroundTransparency = 0.7 r.BorderSizePixel = 0 r.ZIndex = 1 r.Parent = bgLayer
-					loopT(r, (1.3 + rng:NextNumber(0, 1.2)) / spd, { Position = UDim2.new(x, 0, 1.15, 0) }, rng:NextNumber(0, 2))
-				end
-			elseif mode == "Stars" then
-				for k = 1, 22 do
-					local sz = rng:NextInteger(2, 5)
-					local s2 = Instance.new("Frame")
-					s2.AnchorPoint = Vector2.new(0.5, 0.5) s2.Position = UDim2.fromScale(rng:NextNumber(0.03, 0.97), rng:NextNumber(0.05, 0.95))
-					s2.Size = UDim2.fromOffset(sz, sz) s2.BackgroundColor3 = col s2.BackgroundTransparency = 0.9 s2.BorderSizePixel = 0 s2.ZIndex = 1 s2.Parent = bgLayer
-					local c = Instance.new("UICorner") c.CornerRadius = UDim.new(1, 0) c.Parent = s2
-					local tw = Tween(s2, TweenInfo.new((0.7 + rng:NextNumber(0, 1.3)) / spd, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { BackgroundTransparency = 0.3 })
-					task.delay(rng:NextNumber(0, 2), function() if s2.Parent then tw:Play() end end)
-				end
-			elseif mode == "Grid" then
-				local g = Instance.new("ImageLabel")
-				g.BackgroundTransparency = 1 g.AnchorPoint = Vector2.new(0.5, 0.5) g.Position = UDim2.new(0.5, 0, 0.5, 0) g.Size = UDim2.new(2, 0, 2, 0)
-				g.Image = assets.grid g.ImageColor3 = col g.ImageTransparency = 0.92 g.ScaleType = Enum.ScaleType.Tile g.TileSize = UDim2.fromOffset(38, 38) g.ZIndex = 1 g.Parent = bgLayer
-				loopT(g, 10 / spd, { Position = UDim2.new(0.5, -38, 0.5, -38) })
-			elseif mode == "Aurora" then
-				local cols = { col, Y2kTheme.Accent, col }
-				for k = 1, 3 do
-					local blob = Instance.new("Frame")
-					blob.AnchorPoint = Vector2.new(0.5, 0.5)
-					blob.Position = UDim2.fromScale(rng:NextNumber(0.2, 0.8), rng:NextNumber(0.2, 0.8))
-					blob.Size = UDim2.fromScale(0.8, 0.8) blob.BackgroundColor3 = cols[k]
-					blob.BackgroundTransparency = 0.86 blob.BorderSizePixel = 0 blob.ZIndex = 1 blob.Parent = bgLayer
-					local c = Instance.new("UICorner") c.CornerRadius = UDim.new(1, 0) c.Parent = blob
-					Tween(blob, TweenInfo.new((6 + rng:NextNumber(0, 4)) / spd, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-						{ Position = UDim2.fromScale(rng:NextNumber(0.2, 0.8), rng:NextNumber(0.2, 0.8)) }):Play()
-				end
-			end
-		end
-		rebuild()
-		table.insert(Y2kWaveRebuilders, rebuild)
-	end
-
 	local baseUIScale = Instance.new("UIScale")
 	baseUIScale.Name = "BaseUIScale"
 	baseUIScale.Parent = base
 
-	do
 	local baseUICorner = Instance.new("UICorner")
 	baseUICorner.Name = "BaseUICorner"
-	baseUICorner.CornerRadius = UDim.new(0, 12)
+	baseUICorner.CornerRadius = UDim.new(0, 10)
 	baseUICorner.Parent = base
 
-	end
 	local baseUIStroke = Instance.new("UIStroke")
 	baseUIStroke.Name = "BaseUIStroke"
 	baseUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	baseUIStroke.Color = Y2kTheme.Accent
-	baseUIStroke.Transparency = 0.6
+	baseUIStroke.Color = Color3.fromRGB(255, 255, 255)
+	baseUIStroke.Transparency = 0.9
 	baseUIStroke.Parent = base
-	RegisterTheme("Accent", baseUIStroke, "Color")
-
-	local Y2kOutline = Instance.new("UIStroke")  -- Y2k: toggleable prominent outline
-	Y2kOutline.Name = "Y2kOutline"
-	Y2kOutline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	Y2kOutline.Thickness = 2
-	Y2kOutline.Color = MacLib.OutlineColor
-	Y2kOutline.Transparency = 0.1
-	Y2kOutline.Enabled = MacLib.OutlineEnabled
-	Y2kOutline.Parent = base
-	MacLib._outline = Y2kOutline
-
-	-- Y2k: shining blurred glow halo (child of base -> moves smoothly with the window)
-	local Y2kGlow = Instance.new("ImageLabel")
-	Y2kGlow.Name = "Y2kGlow"
-	Y2kGlow.BackgroundTransparency = 1
-	Y2kGlow.AnchorPoint = Vector2.new(0.5, 0.5)
-	Y2kGlow.Position = UDim2.fromScale(0.5, 0.5)
-	Y2kGlow.Size = UDim2.new(1, 64, 1, 64)
-	Y2kGlow.Image = GetY2kIcon("shadow")
-	Y2kGlow.ImageColor3 = MacLib.OutlineColor
-	Y2kGlow.ImageTransparency = 0.4
-	Y2kGlow.ScaleType = Enum.ScaleType.Slice
-	Y2kGlow.SliceCenter = Rect.new(246, 246, 266, 266)
-	Y2kGlow.ZIndex = 0
-	Y2kGlow.Visible = MacLib.OutlineEnabled
-	Y2kGlow.Parent = base
-	MacLib._outlineGlow = Y2kGlow
-	task.spawn(function()
-		pcall(function()
-			Tween(Y2kGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { ImageTransparency = 0.68 }):Play()
-		end)
-	end)
-
-	do  -- Y2k premium polish (asset-free; scoped so registers stay low)
-		local baseGrad = Instance.new("UIGradient")
-		baseGrad.Rotation = 90
-		baseGrad.Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(210, 212, 224)),
-		})
-		baseGrad.Parent = base  -- subtle top->bottom depth on the window body
-		local strokeGrad = Instance.new("UIGradient")
-		strokeGrad.Rotation = 90
-		strokeGrad.Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.1),
-			NumberSequenceKeypoint.new(1, 0.85),
-		})
-		strokeGrad.Parent = baseUIStroke  -- accent edge brighter at the top, fades down
-		local topHi = Instance.new("Frame")
-		topHi.Name = "TopHighlight"
-		topHi.AnchorPoint = Vector2.new(0.5, 0)
-		topHi.Position = UDim2.new(0.5, 0, 0, 1)
-		topHi.Size = UDim2.new(1, -26, 0, 1)
-		topHi.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		topHi.BackgroundTransparency = 0.86
-		topHi.BorderSizePixel = 0
-		topHi.ZIndex = 5
-		topHi.Parent = base  -- thin lit edge along the very top
-	end
-	if MacLib.MobileButton ~= false and UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-		pcall(Y2kMobileButton, function() base.Visible = not base.Visible end)
-	end
-	if MacLib.KeybindList ~= false then pcall(Y2kKeybindPanel) end
 
 	local sidebar = Instance.new("Frame")
 	sidebar.Name = "Sidebar"
@@ -748,17 +148,6 @@ function MacLib:Window(Settings)
 	divider.Position = UDim2.fromScale(1, 0)
 	divider.Size = UDim2.new(0, 1, 1, 0)
 	divider.Parent = sidebar
-	do  -- premium: soft beam fade on the sidebar hairline (brighter mid, fades at ends)
-		local dg = Instance.new("UIGradient")
-		dg.Rotation = 90
-		dg.Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 1),
-			NumberSequenceKeypoint.new(0.2, 0.25),
-			NumberSequenceKeypoint.new(0.8, 0.25),
-			NumberSequenceKeypoint.new(1, 1),
-		})
-		dg.Parent = divider
-	end
 
 	local dividerInteract = Instance.new("TextButton")
 	dividerInteract.Name = "DividerInteract"
@@ -865,13 +254,11 @@ function MacLib:Window(Settings)
 	maximize.BorderSizePixel = 0
 	maximize.LayoutOrder = 1
 
-	do
 	local uICorner2 = Instance.new("UICorner")
 	uICorner2.Name = "UICorner"
 	uICorner2.CornerRadius = UDim.new(1, 0)
 	uICorner2.Parent = maximize
 
-	end
 	maximize.Parent = controls
 
 	local function applyState(button, enabled)
@@ -922,11 +309,6 @@ function MacLib:Window(Settings)
 
 	windowControls.Parent = sidebar
 
-	-- ===== Y2k: hide the sidebar dots + line; close/minimize move to the top bar =====
-	divider1.BackgroundTransparency = 1
-	maximize.Visible = false
-	windowControls.Visible = false  -- replaced by lucide icons in the top-right of the top bar
-
 	local information = Instance.new("Frame")
 	information.Name = "Information"
 	information.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -955,7 +337,6 @@ function MacLib:Window(Settings)
 	informationHolder.BorderSizePixel = 0
 	informationHolder.Size = UDim2.fromScale(1, 1)
 
-	do
 	local informationHolderUIPadding = Instance.new("UIPadding")
 	informationHolderUIPadding.Name = "InformationHolderUIPadding"
 	informationHolderUIPadding.PaddingBottom = UDim.new(0, 10)
@@ -964,7 +345,6 @@ function MacLib:Window(Settings)
 	informationHolderUIPadding.PaddingTop = UDim.new(0, 10)
 	informationHolderUIPadding.Parent = informationHolder
 
-	end
 	local globalSettingsButton = Instance.new("ImageButton")
 	globalSettingsButton.Name = "GlobalSettingsButton"
 	globalSettingsButton.Image = assets.globe
@@ -978,7 +358,6 @@ function MacLib:Window(Settings)
 	globalSettingsButton.Size = UDim2.fromOffset(16,16)
 	globalSettingsButton.Parent = informationHolder
 
-	local globeBtnHovering = false
 	local function ChangeGlobalSettingsButtonState(State)
 		if State == "Default" then
 			Tween(globalSettingsButton, TweenInfo.new(0.2, Enum.EasingStyle.Sine), {
@@ -992,11 +371,9 @@ function MacLib:Window(Settings)
 	end
 
 	globalSettingsButton.MouseEnter:Connect(function()
-		globeBtnHovering = true
 		ChangeGlobalSettingsButtonState("Hover")
 	end)
 	globalSettingsButton.MouseLeave:Connect(function()
-		globeBtnHovering = false
 		ChangeGlobalSettingsButtonState("Default")
 	end)
 
@@ -1006,37 +383,7 @@ function MacLib:Window(Settings)
 	titleFrame.BackgroundTransparency = 1
 	titleFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	titleFrame.BorderSizePixel = 0
-	titleFrame.Size = UDim2.new(1, 0, 1, 0)
-
-	-- Y2k logo on the left of the window title
-	do
-	local y2kLogo = Instance.new("ImageLabel")
-	y2kLogo.Name = "Y2kLogo"
-	y2kLogo.BackgroundTransparency = 1
-	y2kLogo.Size = UDim2.fromOffset(34, 34)
-	y2kLogo.LayoutOrder = 0
-	y2kLogo.Image = GetLogoImage()
-	do
-	local y2kLogoCorner = Instance.new("UICorner")
-	y2kLogoCorner.CornerRadius = UDim.new(0, 9)
-	y2kLogoCorner.Parent = y2kLogo
-	end
-	y2kLogo.AnchorPoint = Vector2.new(0, 0.5)
-	y2kLogo.Position = UDim2.new(0, 6, 0.5, 0)
-	y2kLogo.Parent = titleFrame
-	end
-
-	local titleCol = Instance.new("Frame")
-	titleCol.Name = "TitleColumn"
-	titleCol.BackgroundTransparency = 1
-	titleCol.LayoutOrder = 1
-	titleCol.AutomaticSize = Enum.AutomaticSize.XY
-	titleCol.Size = UDim2.fromOffset(0, 0)
-	local titleColLayout = Instance.new("UIListLayout")
-	titleColLayout.Padding = UDim.new(0, 3)
-	titleColLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	titleColLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	titleColLayout.Parent = titleCol
+	titleFrame.Size = UDim2.fromScale(1, 1)
 
 	local title = Instance.new("TextLabel")
 	title.Name = "Title"
@@ -1051,15 +398,15 @@ function MacLib:Window(Settings)
 	title.TextSize = 18
 	title.TextTransparency = 0.1
 	title.TextTruncate = Enum.TextTruncate.SplitWord
-	title.TextXAlignment = Enum.TextXAlignment.Center
+	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.TextYAlignment = Enum.TextYAlignment.Top
-	title.AutomaticSize = Enum.AutomaticSize.XY
+	title.AutomaticSize = Enum.AutomaticSize.Y
 	title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	title.BackgroundTransparency = 1
 	title.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	title.BorderSizePixel = 0
-	title.Size = UDim2.fromOffset(0, 0)
-	title.Parent = titleCol
+	title.Size = UDim2.new(1, -20, 0, 0)
+	title.Parent = titleFrame
 
 	local subtitle = Instance.new("TextLabel")
 	subtitle.Name = "Subtitle"
@@ -1075,30 +422,23 @@ function MacLib:Window(Settings)
 	subtitle.TextSize = 12
 	subtitle.TextTransparency = 0.7
 	subtitle.TextTruncate = Enum.TextTruncate.SplitWord
-	subtitle.TextXAlignment = Enum.TextXAlignment.Center
+	subtitle.TextXAlignment = Enum.TextXAlignment.Left
 	subtitle.TextYAlignment = Enum.TextYAlignment.Top
-	subtitle.AutomaticSize = Enum.AutomaticSize.XY
+	subtitle.AutomaticSize = Enum.AutomaticSize.Y
 	subtitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	subtitle.BackgroundTransparency = 1
 	subtitle.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	subtitle.BorderSizePixel = 0
 	subtitle.LayoutOrder = 1
-	subtitle.Size = UDim2.fromOffset(0, 0)
-	subtitle.Parent = titleCol
-	Y2kAttachTooltip(subtitle, Settings.Subtitle)  -- hover the subtitle -> see the full (untruncated) text
-
-	titleCol.AnchorPoint = Vector2.new(0.5, 0.5)
-	titleCol.Position = UDim2.fromScale(0.5, 0.5)
-	titleCol.Parent = titleFrame
+	subtitle.Size = UDim2.new(1, -20, 0, 0)
+	subtitle.Parent = titleFrame
 
 	local titleFrameUIListLayout = Instance.new("UIListLayout")
 	titleFrameUIListLayout.Name = "TitleFrameUIListLayout"
-	titleFrameUIListLayout.FillDirection = Enum.FillDirection.Horizontal
-	titleFrameUIListLayout.Padding = UDim.new(0, 10)
+	titleFrameUIListLayout.Padding = UDim.new(0, 3)
 	titleFrameUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	titleFrameUIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	titleFrameUIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	titleFrameUIListLayout.Parent = nil  -- Y2k: absolute layout (logo left, title centered)
+	titleFrameUIListLayout.Parent = titleFrame
 
 	titleFrame.Parent = informationHolder
 
@@ -1133,14 +473,12 @@ function MacLib:Window(Settings)
 	informationGroup.BorderSizePixel = 0
 	informationGroup.Size = UDim2.fromScale(1, 1)
 
-	do
 	local informationGroupUIPadding = Instance.new("UIPadding")
 	informationGroupUIPadding.Name = "InformationGroupUIPadding"
 	informationGroupUIPadding.PaddingBottom = UDim.new(0, 17)
-	informationGroupUIPadding.PaddingLeft = UDim.new(0, 16)
+	informationGroupUIPadding.PaddingLeft = UDim.new(0, 25)
 	informationGroupUIPadding.Parent = informationGroup
 
-	end
 	local informationGroupUIListLayout = Instance.new("UIListLayout")
 	informationGroupUIListLayout.Name = "InformationGroupUIListLayout"
 	informationGroupUIListLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -1151,8 +489,7 @@ function MacLib:Window(Settings)
 	local userId = LocalPlayer.UserId
 	local thumbType = Enum.ThumbnailType.AvatarBust
 	local thumbSize = Enum.ThumbnailSize.Size48x48
-	local headshotImage = Y2kGetAvatar(userId)
-	local isReady = true
+	local headshotImage, isReady = Players:GetUserThumbnailAsync(userId, thumbType, thumbSize)
 
 	local headshot = Instance.new("ImageLabel")
 	headshot.Name = "Headshot"
@@ -1160,26 +497,20 @@ function MacLib:Window(Settings)
 	headshot.BackgroundTransparency = 1
 	headshot.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	headshot.BorderSizePixel = 0
-	headshot.Size = UDim2.fromOffset(36, 36)
+	headshot.Size = UDim2.fromOffset(32, 32)
 	headshot.Image = (isReady and headshotImage) or "rbxassetid://0"
 
-	do
 	local uICorner3 = Instance.new("UICorner")
 	uICorner3.Name = "UICorner"
 	uICorner3.CornerRadius = UDim.new(1, 0)
 	uICorner3.Parent = headshot
 
-	end
-	do
 	local baseUIStroke2 = Instance.new("UIStroke")
 	baseUIStroke2.Name = "BaseUIStroke"
 	baseUIStroke2.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	baseUIStroke2.Color = Y2kTheme.Accent
-	baseUIStroke2.Transparency = 0.45
-	baseUIStroke2.Thickness = 1.4
+	baseUIStroke2.Color = Color3.fromRGB(255, 255, 255)
+	baseUIStroke2.Transparency = 0.9
 	baseUIStroke2.Parent = headshot
-	RegisterTheme("Accent", baseUIStroke2, "Color")
-	end
 
 	headshot.Parent = informationGroup
 
@@ -1190,7 +521,7 @@ function MacLib:Window(Settings)
 	userAndDisplayFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	userAndDisplayFrame.BorderSizePixel = 0
 	userAndDisplayFrame.LayoutOrder = 1
-	userAndDisplayFrame.Size = UDim2.new(1, -46, 0, 36)
+	userAndDisplayFrame.Size = UDim2.new(1, -42, 0, 32)
 
 	local displayName = Instance.new("TextLabel")
 	displayName.Name = "DisplayName"
@@ -1214,14 +545,12 @@ function MacLib:Window(Settings)
 	displayName.Parent = userAndDisplayFrame
 	displayName.Size = UDim2.fromScale(1,0)
 
-	do
 	local userAndDisplayFrameUIPadding = Instance.new("UIPadding")
 	userAndDisplayFrameUIPadding.Name = "UserAndDisplayFrameUIPadding"
 	userAndDisplayFrameUIPadding.PaddingLeft = UDim.new(0, 8)
 	userAndDisplayFrameUIPadding.PaddingTop = UDim.new(0, 3)
 	userAndDisplayFrameUIPadding.Parent = userAndDisplayFrame
 
-	end
 	local userAndDisplayFrameUIListLayout = Instance.new("UIListLayout")
 	userAndDisplayFrameUIListLayout.Name = "UserAndDisplayFrameUIListLayout"
 	userAndDisplayFrameUIListLayout.Padding = UDim.new(0, 1)
@@ -1251,152 +580,18 @@ function MacLib:Window(Settings)
 	username.Parent = userAndDisplayFrame
 	username.Size = UDim2.fromScale(1,0)
 
-	-- ===== Y2k: license-time badge under the username =====
-	do
-	local licenseCircle, licenseText
-	do
-	userAndDisplayFrame.AutomaticSize = Enum.AutomaticSize.Y
-	local licenseSpacer = Instance.new("Frame")
-	licenseSpacer.Name = "LicenseSpacer"
-	licenseSpacer.LayoutOrder = 2
-	licenseSpacer.BackgroundTransparency = 1
-	licenseSpacer.Size = UDim2.fromOffset(1, 3)
-	licenseSpacer.Parent = userAndDisplayFrame
-	local licenseRow = Instance.new("Frame")
-	licenseRow.Name = "LicenseRow"
-	licenseRow.LayoutOrder = 3
-	licenseRow.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	licenseRow.BackgroundTransparency = 0.97
-	licenseRow.BorderSizePixel = 0
-	licenseRow.AutomaticSize = Enum.AutomaticSize.X
-	licenseRow.Size = UDim2.fromOffset(0, 18)
-	do
-	local licenseRowCorner = Instance.new("UICorner")
-	licenseRowCorner.CornerRadius = UDim.new(1, 0)
-	licenseRowCorner.Parent = licenseRow
-	end
-	do
-	local licenseRowPad = Instance.new("UIPadding")
-	licenseRowPad.PaddingLeft = UDim.new(0, 4)
-	licenseRowPad.PaddingRight = UDim.new(0, 8)
-	licenseRowPad.Parent = licenseRow
-	end
-	local licenseRowLayout = Instance.new("UIListLayout")
-	licenseRowLayout.FillDirection = Enum.FillDirection.Horizontal
-	licenseRowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	licenseRowLayout.Padding = UDim.new(0, 5)
-	licenseRowLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	licenseRowLayout.Parent = licenseRow
-
-	local licenseRing = Instance.new("Frame")  -- fixed slot so the row doesn't jump as it shrinks
-	licenseRing.Name = "Ring"
-	licenseRing.BackgroundTransparency = 1
-	licenseRing.Size = UDim2.fromOffset(13, 13)
-	licenseRing.Parent = licenseRow
-	licenseCircle = Instance.new("Frame")  -- the circle; shrinks as time runs down
-	licenseCircle.Name = "Circle"
-	licenseCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-	licenseCircle.Position = UDim2.fromScale(0.5, 0.5)
-	licenseCircle.Size = UDim2.fromOffset(13, 13)
-	licenseCircle.BackgroundColor3 = Color3.fromRGB(52, 199, 89)
-	licenseCircle.BorderSizePixel = 0
-	licenseCircle.Parent = licenseRing
-	do
-	local licenseCircleCorner = Instance.new("UICorner")
-	licenseCircleCorner.CornerRadius = UDim.new(1, 0)
-	licenseCircleCorner.Parent = licenseCircle
-
-	end
-	licenseText = Instance.new("TextLabel")
-	licenseText.Name = "Text"
-	licenseText.LayoutOrder = 1
-	licenseText.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-	licenseText.Text = ""
-	licenseText.TextSize = 11
-	licenseText.AutomaticSize = Enum.AutomaticSize.X
-	licenseText.Size = UDim2.fromOffset(0, 14)
-	licenseText.BackgroundTransparency = 1
-	licenseText.TextColor3 = Color3.fromRGB(52, 199, 89)
-	licenseText.TextXAlignment = Enum.TextXAlignment.Left
-	licenseText.Parent = licenseRow
-
-		licenseRow.Parent = userAndDisplayFrame
-	end
-	local function setLicense(hours, pct)
-		hours = tonumber(hours) or 0
-		if licenseRow then licenseRow.Visible = true end
-		if hours >= 9000 then  -- lifetime sentinel
-			licenseCircle.BackgroundColor3 = Color3.fromRGB(52, 199, 89)
-			licenseText.TextColor3 = Color3.fromRGB(52, 199, 89)
-			licenseCircle.Size = UDim2.fromOffset(13, 13)
-			licenseText.Text = "lifetime"
-			return
-		end
-		-- colour by % of the key's TOTAL duration remaining: >45% green, >15% yellow, else red
-		pct = tonumber(pct); if pct == nil then pct = math.clamp(hours / 6, 0, 1) end
-		pct = math.clamp(pct, 0, 1)
-		local col
-		if pct > 0.45 then col = Color3.fromRGB(52, 199, 89)        -- green
-		elseif pct > 0.15 then col = Color3.fromRGB(255, 196, 60)   -- yellow
-		else col = Color3.fromRGB(255, 80, 95) end                  -- red
-		licenseCircle.BackgroundColor3 = col
-		licenseText.TextColor3 = col
-		local s = math.floor(4 + pct * 9 + 0.5)  -- 13px full -> 4px nearly empty (drains with %)
-		licenseCircle.Size = UDim2.fromOffset(s, s)
-		if hours <= 0 then licenseText.Text = "expired"
-		elseif hours < 1 then licenseText.Text = math.floor(hours * 60) .. "m left"
-		else licenseText.Text = math.floor(hours) .. "h left" end
-	end
-	function WindowFunctions:SetLicense(hours, pct) setLicense(hours, pct) end
-	if licenseRow then licenseRow.Visible = false end  -- hidden until the real key time is fed in (shim polls /timeleft)
-	end
-
 	userAndDisplayFrame.Parent = informationGroup
 
 	informationGroup.Parent = userInfo
 
-	do  -- Y2k: device indicator chip (top-right of the user card)
-		local UIS = UserInputService
-		local devName = "ic_pc"
-		if UIS.TouchEnabled and not UIS.KeyboardEnabled then devName = "ic_mobile"
-		elseif UIS.GamepadEnabled and not UIS.KeyboardEnabled and not UIS.TouchEnabled then devName = "ic_console" end
-		local chip = Instance.new("Frame")
-		chip.Name = "DeviceChip"
-		chip.AnchorPoint = Vector2.new(1, 0.5)
-		chip.Position = UDim2.new(1, 0, 0.5, 0)
-		chip.Size = UDim2.fromOffset(26, 26)
-		chip.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		chip.BackgroundTransparency = 0.94
-		chip.BorderSizePixel = 0
-		chip.ZIndex = 4
-		chip.Parent = userInfo
-		local cc = Instance.new("UICorner") cc.CornerRadius = UDim.new(0, 8) cc.Parent = chip
-		local cs = Instance.new("UIStroke") cs.Color = Color3.fromRGB(255, 255, 255) cs.Transparency = 0.86 cs.Parent = chip
-		local devIcon = Instance.new("ImageLabel")
-		devIcon.Name = "DeviceIcon"
-		devIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-		devIcon.Position = UDim2.fromScale(0.5, 0.5)
-		devIcon.Size = UDim2.fromOffset(16, 16)
-		devIcon.BackgroundTransparency = 1
-		devIcon.Image = GetY2kIcon(devName)
-		devIcon.ImageColor3 = Color3.fromRGB(180, 180, 192)
-		devIcon.ImageTransparency = 0.4
-		devIcon.ZIndex = 5
-		devIcon.Parent = chip
-		Tween(devIcon, TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { ImageTransparency = 0.05 }):Play()
-	end
-
-	do
 	local userInfoUIPadding = Instance.new("UIPadding")
 	userInfoUIPadding.Name = "UserInfoUIPadding"
 	userInfoUIPadding.PaddingLeft = UDim.new(0, 10)
 	userInfoUIPadding.PaddingRight = UDim.new(0, 10)
 	userInfoUIPadding.Parent = userInfo
 
-	end
 	userInfo.Parent = sidebarGroup
 
-	do
 	local sidebarGroupUIPadding = Instance.new("UIPadding")
 	sidebarGroupUIPadding.Name = "SidebarGroupUIPadding"
 	sidebarGroupUIPadding.PaddingLeft = UDim.new(0, 10)
@@ -1404,7 +599,6 @@ function MacLib:Window(Settings)
 	sidebarGroupUIPadding.PaddingTop = UDim.new(0, 31)
 	sidebarGroupUIPadding.Parent = sidebarGroup
 
-	end
 	local tabSwitchers = Instance.new("Frame")
 	tabSwitchers.Name = "TabSwitchers"
 	tabSwitchers.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -1433,13 +627,11 @@ function MacLib:Window(Settings)
 	tabSwitchersScrollingFrameUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	tabSwitchersScrollingFrameUIListLayout.Parent = tabSwitchersScrollingFrame
 
-	do
 	local tabSwitchersScrollingFrameUIPadding = Instance.new("UIPadding")
 	tabSwitchersScrollingFrameUIPadding.Name = "TabSwitchersScrollingFrameUIPadding"
 	tabSwitchersScrollingFrameUIPadding.PaddingTop = UDim.new(0, 2)
 	tabSwitchersScrollingFrameUIPadding.Parent = tabSwitchersScrollingFrame
 
-	end
 	tabSwitchersScrollingFrame.Parent = tabSwitchers
 
 	tabSwitchers.Parent = sidebarGroup
@@ -1540,14 +732,12 @@ function MacLib:Window(Settings)
 	elements.BorderSizePixel = 0
 	elements.Size = UDim2.fromScale(1, 1)
 
-	do
 	local uIPadding2 = Instance.new("UIPadding")
 	uIPadding2.Name = "UIPadding"
 	uIPadding2.PaddingLeft = UDim.new(0, 20)
 	uIPadding2.PaddingRight = UDim.new(0, 20)
 	uIPadding2.Parent = elements
 
-	end
 	local moveIcon = Instance.new("ImageButton")
 	moveIcon.Name = "MoveIcon"
 	moveIcon.Image = assets.transform
@@ -1560,7 +750,7 @@ function MacLib:Window(Settings)
 	moveIcon.Position = UDim2.fromScale(1, 0.5)
 	moveIcon.Size = UDim2.fromOffset(15, 15)
 	moveIcon.Parent = elements
-	moveIcon.Visible = false  -- Y2k: drag is by the title bar instead
+	moveIcon.Visible = not Settings.DragStyle or Settings.DragStyle == 1
 
 	local interact = Instance.new("TextButton")
 	interact.Name = "Interact"
@@ -1668,117 +858,6 @@ function MacLib:Window(Settings)
 		end)
 	end
 
-	-- ===== Y2k: robust drag by the top bar (+ sidebar title) =====
-	do
-	local _yDrag, _yStartPos, _yMouse
-	local _yLocked = false
-	function WindowFunctions:SetLocked(state) _yLocked = state and true or false end
-	function WindowFunctions:GetLocked() return _yLocked end
-	local _y2kTextSet = {}
-	table.insert(Y2kThemeFns, function(role)
-		if role ~= "Text" then return end
-		local c = Y2kTheme.Text
-		for _, d in ipairs(base:GetDescendants()) do
-			if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
-				local w = d.TextColor3
-				if _y2kTextSet[d] or (w.R > 0.98 and w.G > 0.98 and w.B > 0.98) then
-					_y2kTextSet[d] = true
-					d.TextColor3 = c
-				end
-			end
-		end
-	end)
-	local function yDragStart(input)
-		if _yLocked then return end
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			_yDrag = true; _yMouse = input.Position; _yStartPos = base.Position
-			input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then _yDrag = false end end)
-		end
-	end
-	for _, handle in ipairs({ topbar, titleFrame }) do
-		handle.Active = true
-		handle.InputBegan:Connect(yDragStart)
-	end
-	UserInputService.InputChanged:Connect(function(input)
-		if _yLocked then return end
-		if _yDrag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local d = input.Position - _yMouse
-			local _t = UDim2.new(_yStartPos.X.Scale, _yStartPos.X.Offset + d.X, _yStartPos.Y.Scale, _yStartPos.Y.Offset + d.Y)
-			Tween(base, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = _t }):Play()
-		end
-	end)
-	end
-
-	-- ===== Y2k: close + minimize as lucide icons in the top-right of the top bar =====
-	do
-	local y2kCtrls = Instance.new("Frame")
-	y2kCtrls.Name = "Y2kControls"
-	y2kCtrls.AnchorPoint = Vector2.new(1, 0.5)
-	y2kCtrls.Position = UDim2.new(1, -6, 0.5, 0)
-	y2kCtrls.Size = UDim2.fromOffset(56, 24)
-	y2kCtrls.BackgroundTransparency = 1
-	y2kCtrls.ZIndex = 5
-	y2kCtrls.Parent = elements
-	local y2kCtrlsLayout = Instance.new("UIListLayout")
-	y2kCtrlsLayout.FillDirection = Enum.FillDirection.Horizontal
-	y2kCtrlsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	y2kCtrlsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	y2kCtrlsLayout.Padding = UDim.new(0, 10)
-	y2kCtrlsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	y2kCtrlsLayout.Parent = y2kCtrls
-	local function y2kIconBtn(btn, iconName, order, hoverCol)
-		for _, c in ipairs(btn:GetChildren()) do if c:IsA("UIStroke") or c:IsA("UICorner") then c:Destroy() end end
-		btn.Parent = y2kCtrls
-		btn.LayoutOrder = order
-		btn.Visible = true; btn.Active = true; btn.Interactable = true
-		btn.AutoButtonColor = false
-		btn.Text = ""
-		btn.BackgroundTransparency = 1
-		btn.Size = UDim2.fromOffset(20, 20)
-		btn.ZIndex = 6
-		local img = Instance.new("ImageLabel")
-		img.Name = "Icon"; img.BackgroundTransparency = 1
-		img.AnchorPoint = Vector2.new(0.5, 0.5); img.Position = UDim2.fromScale(0.5, 0.5)
-		img.Size = UDim2.fromOffset(17, 17)
-		img.Image = GetY2kIcon(iconName)
-		img.ImageColor3 = Color3.fromRGB(228, 228, 236)
-		img.ZIndex = 7; img.Parent = btn
-		btn.MouseEnter:Connect(function() Tween(img, TweenInfo.new(0.15), { ImageColor3 = hoverCol }):Play() end)
-		btn.MouseLeave:Connect(function() Tween(img, TweenInfo.new(0.15), { ImageColor3 = Color3.fromRGB(228, 228, 236) }):Play() end)
-	end
-	y2kIconBtn(minimize, "ic_min", 1, Color3.fromRGB(255, 200, 70))
-	y2kIconBtn(exit, "ic_x", 2, Color3.fromRGB(255, 90, 100))
-
-	-- ===== Y2k: resize handle (lucide icon, bottom-right) =====
-	local resizeHandle = Instance.new("ImageButton")
-	resizeHandle.Name = "Y2kResize"
-	resizeHandle.AnchorPoint = Vector2.new(1, 1)
-	resizeHandle.Position = UDim2.new(1, -5, 1, -5)
-	resizeHandle.Size = UDim2.fromOffset(18, 18)
-	resizeHandle.BackgroundTransparency = 1
-	resizeHandle.Image = GetY2kIcon("ic_resize")
-	resizeHandle.ImageColor3 = Color3.fromRGB(130, 130, 140)
-	resizeHandle.ImageTransparency = 0.25
-	resizeHandle.ZIndex = 50
-	resizeHandle.Parent = base
-	local _rz, _rzMouse, _rzScale
-	resizeHandle.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			_rz = true; _rzMouse = input.Position; _rzScale = baseUIScale.Scale
-			input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then _rz = false end end)
-		end
-	end)
-	UserInputService.InputChanged:Connect(function(input)
-		if _rz and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local d = input.Position - _rzMouse
-			-- scale the whole window (keeps MacLib's internal layout intact, no overlap)
-			baseUIScale.Scale = math.clamp(_rzScale + (d.X + d.Y) / 700, 0.55, 1.8)
-		end
-	end)
-	resizeHandle.MouseEnter:Connect(function() Tween(resizeHandle, TweenInfo.new(0.15), { ImageTransparency = 0 }):Play() end)
-	resizeHandle.MouseLeave:Connect(function() Tween(resizeHandle, TweenInfo.new(0.15), { ImageTransparency = 0.25 }):Play() end)
-	end
-
 	local currentTab = Instance.new("TextLabel")
 	currentTab.Name = "CurrentTab"
 	currentTab.FontFace = Font.new(assets.interFont)
@@ -1810,8 +889,7 @@ function MacLib:Window(Settings)
 	local globalSettings = Instance.new("Frame")
 	globalSettings.Name = "GlobalSettings"
 	globalSettings.AutomaticSize = Enum.AutomaticSize.XY
-	globalSettings.BackgroundColor3 = Color3.fromRGB(9, 9, 11)
-	RegisterTheme("Background", globalSettings, "BackgroundColor3")
+	globalSettings.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 	globalSettings.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	globalSettings.BorderSizePixel = 0
 	globalSettings.Position = UDim2.fromScale(0.298, 0.104)
@@ -1857,11 +935,22 @@ function MacLib:Window(Settings)
 
 	local hovering
 	local toggled = globalSettingsUIScale.Scale == 1 and true or false
-	local function toggle()  -- non-yielding: flip state instantly + animate (no race between handlers)
-		toggled = not toggled
-		Tween(globalSettingsUIScale, TweenInfo.new(0.2, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
-			Scale = toggled and 1 or 0
-		}):Play()
+	local function toggle()
+		if not toggled then
+			local intween = Tween(globalSettingsUIScale, TweenInfo.new(0.2, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Scale = 1
+			})
+			intween:Play()
+			intween.Completed:Wait()
+			toggled = true
+		elseif toggled then
+			local outtween = Tween(globalSettingsUIScale, TweenInfo.new(0.2, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Scale = 0
+			})
+			outtween:Play()
+			outtween.Completed:Wait()
+			toggled = false
+		end
 	end
 	globalSettingsButton.MouseButton1Click:Connect(function()
 		if not hasGlobalSetting then return end
@@ -1873,9 +962,8 @@ function MacLib:Window(Settings)
 	globalSettings.MouseLeave:Connect(function()
 		hovering = false
 	end)
-	-- click-outside-to-close: ignore clicks on the globe button itself (it toggles via its own click)
 	UserInputService.InputEnded:Connect(function(inp)
-		if inp.UserInputType == Enum.UserInputType.MouseButton1 and toggled and not hovering and not globeBtnHovering then
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 and toggled and not hovering then
 			toggle()
 		end
 	end)
@@ -2297,45 +1385,6 @@ function MacLib:Window(Settings)
 		sectionTabSwitchers.Parent = tabGroup
 		tabGroup.Parent = tabSwitchersScrollingFrame
 
-		-- Y2k: a divider between tabs in the sidebar (optional text). Call between :Tab() calls.
-		function SectionFunctions:Divider(Settings)
-			Settings = Settings or {}
-			tabIndex += 1
-			local d = Instance.new("Frame")
-			d.Name = "TabDivider"
-			d.BackgroundTransparency = 1
-			d.AnchorPoint = Vector2.new(0.5, 0)
-			d.Position = UDim2.fromScale(0.5, 0)
-			d.Size = UDim2.new(1, -21, 0, Settings.Text and 24 or 12)
-			d.LayoutOrder = tabIndex
-			d.Parent = sectionTabSwitchers
-			if Settings.Text then
-				local layout = Instance.new("UIListLayout")
-				layout.FillDirection = Enum.FillDirection.Horizontal
-				layout.VerticalAlignment = Enum.VerticalAlignment.Center
-				layout.SortOrder = Enum.SortOrder.LayoutOrder
-				layout.Padding = UDim.new(0, 8)
-				layout.Parent = d
-				local pad = Instance.new("UIPadding") pad.PaddingLeft = UDim.new(0, 4) pad.PaddingRight = UDim.new(0, 4) pad.Parent = d
-				local lineL = Instance.new("Frame")
-				lineL.BackgroundColor3 = Color3.fromRGB(255, 255, 255) lineL.BackgroundTransparency = 0.9 lineL.BorderSizePixel = 0 lineL.Size = UDim2.new(0, 0, 0, 1) lineL.LayoutOrder = 0 lineL.Parent = d
-				local flexL = Instance.new("UIFlexItem") flexL.FlexMode = Enum.UIFlexMode.Fill flexL.Parent = lineL
-				local lbl = Instance.new("TextLabel")
-				lbl.BackgroundTransparency = 1 lbl.AutomaticSize = Enum.AutomaticSize.X lbl.Size = UDim2.new(0, 0, 1, 0) lbl.LayoutOrder = 1
-				lbl.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold, Enum.FontStyle.Normal) lbl.TextSize = 10
-				lbl.TextColor3 = Color3.fromRGB(255, 255, 255) lbl.TextTransparency = 0.6 lbl.Text = string.upper(Settings.Text) lbl.Parent = d
-				local line = Instance.new("Frame")
-				line.BackgroundColor3 = Color3.fromRGB(255, 255, 255) line.BackgroundTransparency = 0.9 line.BorderSizePixel = 0 line.Size = UDim2.new(0, 0, 0, 1) line.LayoutOrder = 2 line.Parent = d
-				local flex = Instance.new("UIFlexItem") flex.FlexMode = Enum.UIFlexMode.Fill flex.Parent = line
-			else
-				local line = Instance.new("Frame")
-				line.AnchorPoint = Vector2.new(0.5, 0.5) line.Position = UDim2.fromScale(0.5, 0.5)
-				line.BackgroundColor3 = Color3.fromRGB(255, 255, 255) line.BackgroundTransparency = 0.9 line.BorderSizePixel = 0
-				line.Size = UDim2.new(1, -8, 0, 1) line.Parent = d
-			end
-			return {}
-		end
-
 		function SectionFunctions:Tab(Settings)
 			local TabFunctions = {Settings = Settings}
 			local tabSwitcher = Instance.new("TextButton")
@@ -2367,27 +1416,6 @@ function MacLib:Window(Settings)
 			tabSwitcherUIStroke.Transparency = 1
 			tabSwitcherUIStroke.Parent = tabSwitcher
 
-			-- Y2k: left accent indicator (hover -> faint, active -> full, animated)
-			local tabAccent = Instance.new("Frame")
-			tabAccent.Name = "Y2kAccent"
-			tabAccent.AnchorPoint = Vector2.new(0, 0.5)
-			tabAccent.Position = UDim2.new(0, 3, 0.5, 0)
-			tabAccent.Size = UDim2.fromOffset(3, 16)
-			RegisterTheme("Accent", tabAccent, "BackgroundColor3")
-			tabAccent.BackgroundTransparency = 1
-			tabAccent.BorderSizePixel = 0
-			tabAccent.ZIndex = 3
-			tabAccent.Parent = tabSwitcher
-			local tabAccentCorner = Instance.new("UICorner")
-			tabAccentCorner.CornerRadius = UDim.new(1, 0)
-			tabAccentCorner.Parent = tabAccent
-			tabSwitcher.MouseEnter:Connect(function()
-				if not (tabs[tabSwitcher] and tabs[tabSwitcher].active) then Tween(tabAccent, TweenInfo.new(0.15), { BackgroundTransparency = 0.55 }):Play() end
-			end)
-			tabSwitcher.MouseLeave:Connect(function()
-				if not (tabs[tabSwitcher] and tabs[tabSwitcher].active) then Tween(tabAccent, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play() end
-			end)
-
 			local tabSwitcherUIListLayout = Instance.new("UIListLayout")
 			tabSwitcherUIListLayout.Name = "TabSwitcherUIListLayout"
 			tabSwitcherUIListLayout.Padding = UDim.new(0, 9)
@@ -2402,8 +1430,6 @@ function MacLib:Window(Settings)
 				tabImage = Instance.new("ImageLabel")
 				tabImage.Name = "TabImage"
 				tabImage.Image = Settings.Image
-				if Settings.ImageRectOffset then tabImage.ImageRectOffset = Settings.ImageRectOffset end
-				if Settings.ImageRectSize then tabImage.ImageRectSize = Settings.ImageRectSize end
 				tabImage.ImageTransparency = 0.5
 				tabImage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 				tabImage.BackgroundTransparency = 1
@@ -2417,13 +1443,13 @@ function MacLib:Window(Settings)
 			tabSwitcherName.Name = "TabSwitcherName"
 			tabSwitcherName.FontFace = Font.new(
 				assets.interFont,
-				Enum.FontWeight.Regular,
+				Enum.FontWeight.Medium,
 				Enum.FontStyle.Normal
 			)
 			tabSwitcherName.Text = Settings.Name
 			tabSwitcherName.RichText = true
 			tabSwitcherName.TextColor3 = Color3.fromRGB(255, 255, 255)
-			tabSwitcherName.TextSize = 15
+			tabSwitcherName.TextSize = 16
 			tabSwitcherName.TextTransparency = 0.5
 			tabSwitcherName.TextTruncate = Enum.TextTruncate.SplitWord
 			tabSwitcherName.TextXAlignment = Enum.TextXAlignment.Left
@@ -2532,7 +1558,6 @@ function MacLib:Window(Settings)
 
 			elementsScrolling.Parent = elements1
 
-
 			function TabFunctions:Section(Settings)
 				local SectionFunctions = {}
 				local section = Instance.new("Frame")
@@ -2583,7 +1608,6 @@ function MacLib:Window(Settings)
 					button.BorderSizePixel = 0
 					button.Size = UDim2.new(1, 0, 0, 38)
 					button.Parent = section
-					Y2kAttachTooltip(button, Settings.Tooltip or Settings.Description)
 
 					local buttonInteract = Instance.new("TextButton")
 					buttonInteract.Name = "ButtonInteract"
@@ -2678,7 +1702,6 @@ function MacLib:Window(Settings)
 					toggle.BorderSizePixel = 0
 					toggle.Size = UDim2.new(1, 0, 0, 38)
 					toggle.Parent = section
-					Y2kAttachTooltip(toggle, Settings.Tooltip or Settings.Description)
 
 					local toggleName = Instance.new("TextLabel")
 					toggleName.Name = "ToggleName"
@@ -2697,7 +1720,7 @@ function MacLib:Window(Settings)
 					toggleName.BackgroundTransparency = 1
 					toggleName.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					toggleName.BorderSizePixel = 0
-					toggleName.Position = UDim2.new(0, 0, 0, 19)
+					toggleName.Position = UDim2.fromScale(0, 0.5)
 					toggleName.Size = UDim2.new(1, -50, 0, 0)
 					toggleName.Parent = toggle
 
@@ -2711,7 +1734,7 @@ function MacLib:Window(Settings)
 					toggle1.BackgroundTransparency = 1
 					toggle1.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					toggle1.BorderSizePixel = 0
-					toggle1.Position = UDim2.new(1, 0, 0, 19)
+					toggle1.Position = UDim2.fromScale(1, 0.5)
 					toggle1.Size = UDim2.fromOffset(41, 21)
 					toggle1.ImageTransparency = 0.5
 
@@ -2740,28 +1763,6 @@ function MacLib:Window(Settings)
 
 					toggle1.Parent = toggle
 
-					-- Y2k: addon row for keybind/colorpicker beside the toggle (left of the switch)
-					local toggleAddons = Instance.new("Frame")
-					toggleAddons.Name = "Y2kAddons"
-					toggleAddons.AnchorPoint = Vector2.new(1, 0.5)
-					toggleAddons.Position = UDim2.new(1, -50, 0, 19)
-					toggleAddons.Size = UDim2.fromOffset(0, 24)
-					toggleAddons.AutomaticSize = Enum.AutomaticSize.X
-					toggleAddons.BackgroundTransparency = 1
-					toggleAddons.ZIndex = 2
-					toggleAddons.Parent = toggle
-					local toggleAddonsLayout = Instance.new("UIListLayout")
-					toggleAddonsLayout.FillDirection = Enum.FillDirection.Horizontal
-					toggleAddonsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-					toggleAddonsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-					toggleAddonsLayout.Padding = UDim.new(0, 6)
-					toggleAddonsLayout.Parent = toggleAddons
-					local function fitToggleName()  -- avoid name colliding with keybind/colorpicker/switch
-						toggleName.Size = UDim2.new(1, -(56 + toggleAddons.AbsoluteSize.X), 0, 0)
-					end
-					toggleAddons:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitToggleName)
-					task.defer(fitToggleName)
-
 					local toggle1Transparency = {Enabled = 0, Disabled = 0.5}
 					local togglerHeadTransparency = {Enabled = 0, Disabled = 0.85}
 
@@ -2778,11 +1779,6 @@ function MacLib:Window(Settings)
 						local transparencyValues = State and {toggle1Transparency.Enabled, togglerHeadTransparency.Enabled}
 							or {toggle1Transparency.Disabled, togglerHeadTransparency.Disabled}
 						local position = State and TweenSettings.EnabledPosition or TweenSettings.DisabledPosition
-
-						-- Y2k: set the on/off colour DIRECTLY (tweening ImageColor3 is dropped by some
-						-- executors -> the switch never turned blue). Animate transparency only.
-						toggle1.ImageColor3 = State and Y2kTheme.Accent or Color3.fromRGB(87, 86, 86)
-						toggle1.ImageTransparency = transparencyValues[1]
 
 						Tween(toggle1, TweenSettings.Info, {
 							ImageTransparency = transparencyValues[1]
@@ -2803,12 +1799,6 @@ function MacLib:Window(Settings)
 					end
 
 					NewState(togglebool)
-
-					table.insert(Y2kThemeFns, function(role)
-						if role == "Accent" and ToggleFunctions.State then
-							toggle1.ImageColor3 = Y2kTheme.Accent
-						end
-					end)
 
 					local function Toggle()
 						togglebool = not togglebool
@@ -2834,50 +1824,6 @@ function MacLib:Window(Settings)
 						toggle.Visible = State
 					end
 
-					-- Y2k: keybind beside the toggle (presses the key -> toggles, or fires Callback)
-					function ToggleFunctions:Keybind(kb)
-						kb = kb or {}
-						local btn = Instance.new("TextButton")
-						btn.Name = "Keybind"; btn.AutoButtonColor = false; btn.AutomaticSize = Enum.AutomaticSize.X
-						btn.Size = UDim2.fromOffset(0, 22); btn.BackgroundColor3 = Color3.fromRGB(26, 26, 30); btn.Text = ""; btn.ZIndex = 3; btn.Parent = toggleAddons
-						local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, 6) c.Parent = btn
-						local s = Instance.new("UIStroke") s.Color = Color3.fromRGB(255, 255, 255) s.Transparency = 0.88 s.Parent = btn
-						local lbl = Instance.new("TextLabel")
-						lbl.BackgroundTransparency = 1; lbl.AutomaticSize = Enum.AutomaticSize.X; lbl.Size = UDim2.new(0, 0, 1, 0)
-						lbl.FontFace = Font.new(assets.interFont, Enum.FontWeight.Medium, Enum.FontStyle.Normal); lbl.TextSize = 11
-						lbl.TextColor3 = Color3.fromRGB(205, 205, 215); lbl.ZIndex = 4; lbl.Parent = btn
-						local pad = Instance.new("UIPadding") pad.PaddingLeft = UDim.new(0, 9) pad.PaddingRight = UDim.new(0, 9) pad.Parent = btn
-						local key = kb.Default
-						local function show(k) lbl.Text = (k and (tostring(k):gsub("Enum.KeyCode.", "")) or "None") end
-						show(key)
-						Y2kRegisterBind({ name = (ToggleFunctions.Settings and ToggleFunctions.Settings.Name) or kb.Name or "Keybind", getKey = function() return lbl.Text end, getState = function() return ToggleFunctions.State end })
-						local listening = false
-						btn.MouseButton1Click:Connect(function() listening = true; lbl.Text = "..." end)
-						UserInputService.InputBegan:Connect(function(input, gp)
-							if listening and input.UserInputType == Enum.UserInputType.Keyboard then
-								listening = false
-								key = (input.KeyCode == Enum.KeyCode.Backspace) and nil or input.KeyCode
-								show(key)
-							elseif not gp and not listening and key and input.KeyCode == key then
-								ToggleFunctions:Toggle()
-								if kb.Callback then task.spawn(function() pcall(kb.Callback) end) end
-							end
-						end)
-						return ToggleFunctions
-					end
-
-					-- Y2k: colorpicker beside the toggle (opens the inline SV panel below)
-					function ToggleFunctions:Colorpicker(cp)
-						cp = cp or {}
-						local sw = Instance.new("TextButton")
-						sw.Name = "Colorpicker"; sw.AutoButtonColor = false; sw.Size = UDim2.fromOffset(22, 22)
-						sw.BackgroundColor3 = cp.Default or Color3.fromRGB(91, 124, 255); sw.Text = ""; sw.ZIndex = 3; sw.Parent = toggleAddons
-						local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, 6) c.Parent = sw
-						local s = Instance.new("UIStroke") s.Color = Color3.fromRGB(255, 255, 255) s.Transparency = 0.85 s.Parent = sw
-						Y2kColorPanel(toggle, sw, cp.Default or Color3.fromRGB(91, 124, 255), cp.Callback, 42)
-						return ToggleFunctions
-					end
-
 					if Flag then
 						MacLib.Options[Flag] = ToggleFunctions
 					end
@@ -2895,7 +1841,6 @@ function MacLib:Window(Settings)
 					slider.BorderSizePixel = 0
 					slider.Size = UDim2.new(1, 0, 0, 38)
 					slider.Parent = section
-					Y2kAttachTooltip(slider, Settings.Tooltip or Settings.Description)
 
 					local sliderName = Instance.new("TextLabel")
 					sliderName.Name = "SliderName"
@@ -2974,44 +1919,26 @@ function MacLib:Window(Settings)
 
 					local sliderBar = Instance.new("ImageLabel")
 					sliderBar.Name = "SliderBar"
-					sliderBar.Image = ""
-					sliderBar.BackgroundColor3 = Color3.fromRGB(52, 52, 58)
-					sliderBar.BackgroundTransparency = 0
+					sliderBar.Image = assets.sliderbar
+					sliderBar.ImageColor3 = Color3.fromRGB(87, 86, 86)
+					sliderBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					sliderBar.BackgroundTransparency = 1
 					sliderBar.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					sliderBar.BorderSizePixel = 0
 					sliderBar.Position = UDim2.fromScale(0.219, 0.457)
-					sliderBar.Size = UDim2.fromOffset(123, 7)
-					local sliderBarCorner = Instance.new("UICorner")
-					sliderBarCorner.CornerRadius = UDim.new(1, 0)
-					sliderBarCorner.Parent = sliderBar
-					-- accent fill up to the knob (pill)
-					local sliderFill = Instance.new("Frame")
-					sliderFill.Name = "SliderFill"
-					sliderFill.BackgroundColor3 = Color3.fromRGB(140, 140, 150)
-					RegisterTheme("Accent", sliderFill, "BackgroundColor3")
-					sliderFill.BorderSizePixel = 0
-					sliderFill.Size = UDim2.fromScale(0.5, 1)
-					sliderFill.ZIndex = 2
-					sliderFill.Parent = sliderBar
-					local sliderFillCorner = Instance.new("UICorner")
-					sliderFillCorner.CornerRadius = UDim.new(1, 0)
-					sliderFillCorner.Parent = sliderFill
+					sliderBar.Size = UDim2.fromOffset(123, 3)
 
 					local sliderHead = Instance.new("ImageButton")
 					sliderHead.Name = "SliderHead"
-					sliderHead.Image = ""
+					sliderHead.Image = assets.sliderhead
 					sliderHead.AnchorPoint = Vector2.new(0.5, 0.5)
 					sliderHead.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-					sliderHead.BackgroundTransparency = 0
+					sliderHead.BackgroundTransparency = 1
 					sliderHead.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					sliderHead.BorderSizePixel = 0
 					sliderHead.Position = UDim2.fromScale(1, 0.5)
-					sliderHead.Size = UDim2.fromOffset(15, 15)
-					sliderHead.ZIndex = 3
+					sliderHead.Size = UDim2.fromOffset(12, 12)
 					sliderHead.Parent = sliderBar
-					local sliderHeadCorner = Instance.new("UICorner")
-					sliderHeadCorner.CornerRadius = UDim.new(1, 0)
-					sliderHeadCorner.Parent = sliderHead
 
 					sliderBar.Parent = sliderElements
 
@@ -3067,7 +1994,6 @@ function MacLib:Window(Settings)
 
 						local pos = UDim2.new(posXScale, 0, 0.5, 0)
 						sliderHead.Position = pos
-						sliderFill.Size = UDim2.new(posXScale, 0, 1, 0)  -- accent fill tracks the knob
 
 						finalValue = posXScale * (SliderFunctions.Settings.Maximum - SliderFunctions.Settings.Minimum) + Settings.Minimum
 
@@ -3176,7 +2102,6 @@ function MacLib:Window(Settings)
 					input.BorderSizePixel = 0
 					input.Size = UDim2.new(1, 0, 0, 38)
 					input.Parent = section
-					Y2kAttachTooltip(input, Settings.Tooltip or Settings.Description)
 
 					local inputName = Instance.new("TextLabel")
 					inputName.Name = "InputName"
@@ -3353,7 +2278,6 @@ function MacLib:Window(Settings)
 					keybind.BorderSizePixel = 0
 					keybind.Size = UDim2.new(1, 0, 0, 38)
 					keybind.Parent = section
-					Y2kAttachTooltip(keybind, Settings.Tooltip or Settings.Description)
 
 					local keybindName = Instance.new("TextLabel")
 					keybindName.Name = "KeybindName"
@@ -3520,7 +2444,6 @@ function MacLib:Window(Settings)
 						MacLib.Options[Flag] = KeybindFunctions
 					end
 
-					Y2kRegisterBind({ name = KeybindFunctions.Settings.Name, getKey = function() return (binderBox.Text ~= "" and binderBox.Text) or "None" end })
 					return KeybindFunctions
 				end
 
@@ -3537,7 +2460,6 @@ function MacLib:Window(Settings)
 					dropdown.BorderSizePixel = 0
 					dropdown.Size = UDim2.new(1, 0, 0, 38)
 					dropdown.Parent = section
-					Y2kAttachTooltip(dropdown, Settings.Tooltip or Settings.Description)
 					dropdown.ClipsDescendants = true
 
 					local dropdownUIPadding = Instance.new("UIPadding")
@@ -3591,7 +2513,7 @@ function MacLib:Window(Settings)
 
 					local dropdownImage = Instance.new("ImageLabel")
 					dropdownImage.Name = "DropdownImage"
-					dropdownImage.Image = GetY2kIcon("ic_chev")
+					dropdownImage.Image = assets.dropdown
 					dropdownImage.ImageTransparency = 0.5
 					dropdownImage.AnchorPoint = Vector2.new(1, 0)
 					dropdownImage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -3808,7 +2730,7 @@ function MacLib:Window(Settings)
 							Size = targetSize
 						})
 						local iconTween = Tween(dropdownImage, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-							Rotation = isDropdownOpen and 180 or 0
+							Rotation = isDropdownOpen and -90 or 0
 						})
 
 						dropTween:Play()
@@ -4113,7 +3035,6 @@ function MacLib:Window(Settings)
 					colorpicker.BorderSizePixel = 0
 					colorpicker.Size = UDim2.new(1, 0, 0, 38)
 					colorpicker.Parent = section
-					Y2kAttachTooltip(colorpicker, Settings.Tooltip or Settings.Description)
 
 					local colorpickerName = Instance.new("TextLabel")
 					colorpickerName.Name = "KeybindName"
@@ -4132,7 +3053,7 @@ function MacLib:Window(Settings)
 					colorpickerName.BackgroundTransparency = 1
 					colorpickerName.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					colorpickerName.BorderSizePixel = 0
-					colorpickerName.Position = UDim2.new(0, 0, 0, 19)
+					colorpickerName.Position = UDim2.fromScale(0, 0.5)
 					colorpickerName.Parent = colorpicker
 
 					local colorCbg = Instance.new("ImageLabel")
@@ -4145,7 +3066,7 @@ function MacLib:Window(Settings)
 					colorCbg.BackgroundTransparency = 1
 					colorCbg.BorderColor3 = Color3.fromRGB(0, 0, 0)
 					colorCbg.BorderSizePixel = 0
-					colorCbg.Position = UDim2.new(1, 0, 0, 19)
+					colorCbg.Position = UDim2.fromScale(1, 0.5)
 					colorCbg.Size = UDim2.fromOffset(21, 21)
 
 					local colorC = Instance.new("Frame")
@@ -4184,167 +3105,1198 @@ function MacLib:Window(Settings)
 
 					colorCbg.Parent = colorpicker
 
-					-- ===== Y2k minimal inline colorpicker: SV square + hue bar, draggable, live =====
-					local hue, sat, val = 0, 1, 1
-					local alpha = math.clamp(tonumber(ColorpickerFunctions.Alpha) or 0, 0, 1)
-					do
-						local base = ColorpickerFunctions.Color or Color3.new(1, 1, 1)
-						hue, sat, val = Color3.new(base.R, base.G, base.B):ToHSV()
-					end
+					local colorPicker = Instance.new("Frame")
+					colorPicker.Name = "ColorPicker"
+					colorPicker.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					colorPicker.BackgroundTransparency = 0.5
+					colorPicker.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					colorPicker.BorderSizePixel = 0
+					colorPicker.Size = UDim2.fromScale(1, 1)
+					colorPicker.Visible = false
 
-					local panel = Instance.new("Frame")
-					panel.Name = "ColorPicker"
-					panel.BackgroundColor3 = Color3.fromRGB(9, 9, 11)
-					panel.BackgroundTransparency = 0
-					panel.BorderSizePixel = 0
-					panel.AnchorPoint = Vector2.new(0, 0)
-					panel.Position = UDim2.new(0, 0, 0, 44)
-					panel.Size = UDim2.new(1, 0, 0, 152)
-					panel.ZIndex = 4
-					panel.Visible = false
-					panel.Parent = colorpicker
-					local panelCorner = Instance.new("UICorner") panelCorner.CornerRadius = UDim.new(0, 10) panelCorner.Parent = panel
-					local panelStroke = Instance.new("UIStroke") panelStroke.Color = Color3.fromRGB(255, 255, 255) panelStroke.Transparency = 0.9 panelStroke.Parent = panel
-					local panelPad = Instance.new("UIPadding")
-					panelPad.PaddingTop = UDim.new(0, 11) panelPad.PaddingBottom = UDim.new(0, 11)
-					panelPad.PaddingLeft = UDim.new(0, 11) panelPad.PaddingRight = UDim.new(0, 11) panelPad.Parent = panel
+					local baseUICorner = Instance.new("UICorner")
+					baseUICorner.Name = "BaseUICorner"
+					baseUICorner.CornerRadius = UDim.new(0, 10)
+					baseUICorner.Parent = colorPicker
 
-					-- SV square (saturation x, brightness y)
-					local square = Instance.new("Frame")
-					square.Name = "Square"
-					square.Size = UDim2.new(1, -52, 1, 0)
-					square.Position = UDim2.fromScale(0, 0)
-					square.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
-					square.BorderSizePixel = 0
-					square.ZIndex = 5
-					square.Parent = panel
-					local squareCorner = Instance.new("UICorner") squareCorner.CornerRadius = UDim.new(0, 8) squareCorner.Parent = square
-					local satOverlay = Instance.new("Frame")
-					satOverlay.Name = "Sat" satOverlay.BackgroundColor3 = Color3.new(1, 1, 1)
-					satOverlay.Size = UDim2.fromScale(1, 1) satOverlay.BorderSizePixel = 0 satOverlay.ZIndex = 6 satOverlay.Parent = square
-					local satCorner = Instance.new("UICorner") satCorner.CornerRadius = UDim.new(0, 8) satCorner.Parent = satOverlay
-					local satGrad = Instance.new("UIGradient")
-					satGrad.Color = ColorSequence.new(Color3.new(1, 1, 1))
-					satGrad.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) })
-					satGrad.Parent = satOverlay
-					local valOverlay = Instance.new("Frame")
-					valOverlay.Name = "Val" valOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
-					valOverlay.Size = UDim2.fromScale(1, 1) valOverlay.BorderSizePixel = 0 valOverlay.ZIndex = 7 valOverlay.Parent = square
-					local valCorner = Instance.new("UICorner") valCorner.CornerRadius = UDim.new(0, 8) valCorner.Parent = valOverlay
-					local valGrad = Instance.new("UIGradient")
-					valGrad.Rotation = 90
-					valGrad.Color = ColorSequence.new(Color3.new(0, 0, 0))
-					valGrad.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0) })
-					valGrad.Parent = valOverlay
-					local svDot = Instance.new("Frame")
-					svDot.Name = "Dot" svDot.Size = UDim2.fromOffset(11, 11) svDot.AnchorPoint = Vector2.new(0.5, 0.5)
-					svDot.BackgroundColor3 = Color3.new(1, 1, 1) svDot.BorderSizePixel = 0 svDot.ZIndex = 9 svDot.Parent = square
-					local svDotCorner = Instance.new("UICorner") svDotCorner.CornerRadius = UDim.new(1, 0) svDotCorner.Parent = svDot
-					local svDotStroke = Instance.new("UIStroke") svDotStroke.Color = Color3.new(0, 0, 0) svDotStroke.Thickness = 1.5 svDotStroke.Transparency = 0.45 svDotStroke.Parent = svDot
+					local prompt = Instance.new("Frame")
+					prompt.Name = "Prompt"
+					prompt.AnchorPoint = Vector2.new(0.5, 0.5)
+					prompt.AutomaticSize = Enum.AutomaticSize.Y
+					prompt.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+					prompt.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					prompt.BorderSizePixel = 0
+					prompt.Position = UDim2.fromScale(0.5, 0.5)
+					prompt.Size = UDim2.fromOffset(420, 0)
 
-					-- hue bar (vertical)
-					local hueBar = Instance.new("Frame")
-					hueBar.Name = "Hue" hueBar.Size = UDim2.new(0, 16, 1, 0) hueBar.Position = UDim2.new(1, -16, 0, 0)
-					hueBar.BorderSizePixel = 0 hueBar.ZIndex = 5 hueBar.Parent = panel
-					local hueCorner = Instance.new("UICorner") hueCorner.CornerRadius = UDim.new(0, 6) hueCorner.Parent = hueBar
-					local hueGrad = Instance.new("UIGradient")
-					hueGrad.Rotation = 90
-					hueGrad.Color = ColorSequence.new({
-						ColorSequenceKeypoint.new(0.00, Color3.fromHSV(0, 1, 1)),
-						ColorSequenceKeypoint.new(0.17, Color3.fromHSV(0.17, 1, 1)),
-						ColorSequenceKeypoint.new(0.33, Color3.fromHSV(0.33, 1, 1)),
-						ColorSequenceKeypoint.new(0.50, Color3.fromHSV(0.50, 1, 1)),
-						ColorSequenceKeypoint.new(0.67, Color3.fromHSV(0.67, 1, 1)),
-						ColorSequenceKeypoint.new(0.83, Color3.fromHSV(0.83, 1, 1)),
-						ColorSequenceKeypoint.new(1.00, Color3.fromHSV(1, 1, 1)),
+					local promptUIScale = Instance.new("UIScale")
+					promptUIScale.Name = "BaseUIScale"
+					promptUIScale.Parent = prompt
+					promptUIScale.Scale = 0.95
+
+					local globalSettingsUIStroke = Instance.new("UIStroke")
+					globalSettingsUIStroke.Name = "GlobalSettingsUIStroke"
+					globalSettingsUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					globalSettingsUIStroke.Color = Color3.fromRGB(255, 255, 255)
+					globalSettingsUIStroke.Transparency = 0.9
+					globalSettingsUIStroke.Parent = prompt
+
+					local globalSettingsUICorner = Instance.new("UICorner")
+					globalSettingsUICorner.Name = "GlobalSettingsUICorner"
+					globalSettingsUICorner.CornerRadius = UDim.new(0, 10)
+					globalSettingsUICorner.Parent = prompt
+
+					local uIListLayout = Instance.new("UIListLayout")
+					uIListLayout.Name = "UIListLayout"
+					uIListLayout.Padding = UDim.new(0, 10)
+					uIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+					uIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout.Parent = prompt
+
+					local colorOptions = Instance.new("Frame")
+					colorOptions.Name = "ColorOptions"
+					colorOptions.AutomaticSize = Enum.AutomaticSize.XY
+					colorOptions.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					colorOptions.BackgroundTransparency = 1
+					colorOptions.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					colorOptions.BorderSizePixel = 0
+					colorOptions.LayoutOrder = 1
+					colorOptions.Size = UDim2.fromScale(1, 0)
+
+					local value = Instance.new("TextButton")
+					value.Name = "Value"
+					value.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json")
+					value.Text = ""
+					value.TextColor3 = Color3.fromRGB(0, 0, 0)
+					value.TextSize = 14
+					value.AutoButtonColor = false
+					value.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					value.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					value.BorderSizePixel = 0
+					value.LayoutOrder = 1
+					value.Position = UDim2.fromScale(0.092, 0.886)
+					value.Size = UDim2.new(1, 0, 0, 15)
+
+					local uIGradient = Instance.new("UIGradient")
+					uIGradient.Name = "UIGradient"
+					uIGradient.Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+						ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)),
 					})
-					hueGrad.Parent = hueBar
-					local hueMarker = Instance.new("Frame")
-					hueMarker.Name = "Marker" hueMarker.Size = UDim2.new(1, 4, 0, 3) hueMarker.AnchorPoint = Vector2.new(0.5, 0.5)
-					hueMarker.Position = UDim2.fromScale(0.5, 0) hueMarker.BackgroundColor3 = Color3.new(1, 1, 1)
-					hueMarker.BorderSizePixel = 0 hueMarker.ZIndex = 6 hueMarker.Parent = hueBar
-					local hueMarkerCorner = Instance.new("UICorner") hueMarkerCorner.CornerRadius = UDim.new(1, 0) hueMarkerCorner.Parent = hueMarker
-					-- alpha bar (opaque top -> transparent bottom)
-					local alphaBar = Instance.new("ImageLabel")
-					alphaBar.Name = "Alpha" alphaBar.Image = assets.grid alphaBar.ScaleType = Enum.ScaleType.Tile alphaBar.TileSize = UDim2.fromOffset(10, 10)
-					alphaBar.ImageColor3 = Color3.fromRGB(150, 150, 150) alphaBar.ImageTransparency = 0.2 alphaBar.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
-					alphaBar.Size = UDim2.new(0, 16, 1, 0) alphaBar.Position = UDim2.new(1, -42, 0, 0) alphaBar.BorderSizePixel = 0 alphaBar.ZIndex = 5 alphaBar.Parent = panel
-					local alphaCorner = Instance.new("UICorner") alphaCorner.CornerRadius = UDim.new(0, 6) alphaCorner.Parent = alphaBar
-					local alphaFill = Instance.new("Frame")
-					alphaFill.Name = "Fill" alphaFill.Size = UDim2.fromScale(1, 1) alphaFill.BorderSizePixel = 0 alphaFill.BackgroundColor3 = Color3.fromHSV(hue, sat, val) alphaFill.ZIndex = 6 alphaFill.Parent = alphaBar
-					local alphaFillCorner = Instance.new("UICorner") alphaFillCorner.CornerRadius = UDim.new(0, 6) alphaFillCorner.Parent = alphaFill
-					local alphaGrad = Instance.new("UIGradient") alphaGrad.Rotation = 90
-					alphaGrad.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }) alphaGrad.Parent = alphaFill
-					local alphaMarker = Instance.new("Frame")
-					alphaMarker.Name = "Marker" alphaMarker.Size = UDim2.new(1, 4, 0, 3) alphaMarker.AnchorPoint = Vector2.new(0.5, 0.5)
-					alphaMarker.Position = UDim2.fromScale(0.5, 0) alphaMarker.BackgroundColor3 = Color3.new(1, 1, 1) alphaMarker.BorderSizePixel = 0 alphaMarker.ZIndex = 8 alphaMarker.Parent = alphaBar
-					local alphaMarkerCorner = Instance.new("UICorner") alphaMarkerCorner.CornerRadius = UDim.new(1, 0) alphaMarkerCorner.Parent = alphaMarker
+					uIGradient.Parent = value
 
-					local function applyColor(fire)
-						local col = Color3.fromHSV(hue, sat, val)
-						square.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
-						colorC.BackgroundColor3 = col
-						colorC.BackgroundTransparency = alpha
-						alphaFill.BackgroundColor3 = col
-						alphaMarker.Position = UDim2.fromScale(0.5, alpha)
-						svDot.Position = UDim2.fromScale(sat, 1 - val)
-						hueMarker.Position = UDim2.fromScale(0.5, hue)
-						ColorpickerFunctions.Color = Color3.fromRGB(math.floor(col.R * 255), math.floor(col.G * 255), math.floor(col.B * 255))
-						ColorpickerFunctions.Alpha = alpha
-						if fire and ColorpickerFunctions.Settings.Callback then
-							task.spawn(function() pcall(ColorpickerFunctions.Settings.Callback, col, alpha) end)
+					local slide = Instance.new("Frame")
+					slide.Name = "Slide"
+					slide.AnchorPoint = Vector2.new(0, 0.5)
+					slide.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					slide.BorderColor3 = Color3.fromRGB(27, 42, 53)
+					slide.BorderSizePixel = 0
+					slide.Position = UDim2.fromScale(0, 0.5)
+					slide.Size = UDim2.new(0, 13, 1, 8)
+
+					local uICorner = Instance.new("UICorner")
+					uICorner.Name = "UICorner"
+					uICorner.CornerRadius = UDim.new(1, 0)
+					uICorner.Parent = slide
+
+					local uIStroke = Instance.new("UIStroke")
+					uIStroke.Name = "UIStroke"
+					uIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					uIStroke.Transparency = 0.5
+					uIStroke.Parent = slide
+
+					slide.Parent = value
+
+					local uICorner1 = Instance.new("UICorner")
+					uICorner1.Name = "UICorner"
+					uICorner1.CornerRadius = UDim.new(0, 6)
+					uICorner1.Parent = value
+
+					local uIStroke1 = Instance.new("UIStroke")
+					uIStroke1.Name = "UIStroke"
+					uIStroke1.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					uIStroke1.Color = Color3.fromRGB(255, 255, 255)
+					uIStroke1.Transparency = 0.9
+
+					local uIGradient1 = Instance.new("UIGradient")
+					uIGradient1.Name = "UIGradient"
+					uIGradient1.Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+						ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)),
+					})
+					uIGradient1.Rotation = 180
+					uIGradient1.Parent = uIStroke1
+
+					uIStroke1.Parent = value
+
+					value.Parent = colorOptions
+
+					local uIListLayout1 = Instance.new("UIListLayout")
+					uIListLayout1.Name = "UIListLayout"
+					uIListLayout1.Padding = UDim.new(0, 25)
+					uIListLayout1.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout1.Parent = colorOptions
+
+					local wheel = Instance.new("Frame")
+					wheel.Name = "Wheel"
+					wheel.AutomaticSize = Enum.AutomaticSize.Y
+					wheel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					wheel.BackgroundTransparency = 1
+					wheel.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					wheel.BorderSizePixel = 0
+					wheel.Size = UDim2.new(1, 0, 0, 100)
+
+					local wheel1 = Instance.new("ImageButton")
+					wheel1.Name = "Wheel"
+					wheel1.Image = assets.colorWheel
+					wheel1.AutoButtonColor = false
+					wheel1.Active = false
+					wheel1.BackgroundColor3 = Color3.fromRGB(248, 248, 248)
+					wheel1.BackgroundTransparency = 1
+					wheel1.BorderColor3 = Color3.fromRGB(27, 42, 53)
+					wheel1.Selectable = false
+					wheel1.Size = UDim2.fromOffset(220, 220)
+					wheel1.SizeConstraint = Enum.SizeConstraint.RelativeYY
+
+					local target = Instance.new("ImageLabel")
+					target.Name = "Target"
+					target.Image = assets.colorTarget
+					target.ImageColor3 = Color3.fromRGB(0, 0, 0)
+					target.AnchorPoint = Vector2.new(0.5, 0.5)
+					target.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					target.BackgroundTransparency = 1
+					target.BorderColor3 = Color3.fromRGB(27, 42, 53)
+					target.Position = UDim2.fromScale(0.5, 0.5)
+					target.Size = UDim2.fromOffset(22, 22)
+					target.SizeConstraint = Enum.SizeConstraint.RelativeYY
+					target.Parent = wheel1
+
+					wheel1.Parent = wheel
+
+					local inputs = Instance.new("Frame")
+					inputs.Name = "Inputs"
+					inputs.AnchorPoint = Vector2.new(1, 0.5)
+					inputs.AutomaticSize = Enum.AutomaticSize.XY
+					inputs.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputs.BackgroundTransparency = 1
+					inputs.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputs.BorderSizePixel = 0
+					inputs.LayoutOrder = 1
+					inputs.Position = UDim2.fromScale(1, 0.5)
+
+					local uIListLayout2 = Instance.new("UIListLayout")
+					uIListLayout2.Name = "UIListLayout"
+					uIListLayout2.Padding = UDim.new(0, 5)
+					uIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout2.Parent = inputs
+
+					local red = Instance.new("Frame")
+					red.Name = "Red"
+					red.AutomaticSize = Enum.AutomaticSize.XY
+					red.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					red.BackgroundTransparency = 1
+					red.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					red.BorderSizePixel = 0
+					red.LayoutOrder = 1
+					red.Size = UDim2.fromOffset(0, 38)
+
+					local inputName = Instance.new("TextLabel")
+					inputName.Name = "InputName"
+					inputName.FontFace = Font.new(assets.interFont)
+					inputName.Text = "Red"
+					inputName.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputName.TextSize = 13
+					inputName.TextTransparency = 0.5
+					inputName.TextTruncate = Enum.TextTruncate.AtEnd
+					inputName.TextXAlignment = Enum.TextXAlignment.Left
+					inputName.TextYAlignment = Enum.TextYAlignment.Top
+					inputName.AnchorPoint = Vector2.new(0, 0.5)
+					inputName.AutomaticSize = Enum.AutomaticSize.XY
+					inputName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputName.BackgroundTransparency = 1
+					inputName.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputName.BorderSizePixel = 0
+					inputName.LayoutOrder = 2
+					inputName.Position = UDim2.fromScale(0, 0.5)
+					inputName.Parent = red
+
+					local uIListLayout3 = Instance.new("UIListLayout")
+					uIListLayout3.Name = "UIListLayout"
+					uIListLayout3.Padding = UDim.new(0, 15)
+					uIListLayout3.FillDirection = Enum.FillDirection.Horizontal
+					uIListLayout3.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout3.VerticalAlignment = Enum.VerticalAlignment.Center
+					uIListLayout3.Parent = red
+
+					local inputBox = Instance.new("TextBox")
+					inputBox.Name = "InputBox"
+					inputBox.ClearTextOnFocus = false
+					inputBox.CursorPosition = -1
+					inputBox.FontFace = Font.new(assets.interFont)
+					inputBox.Text = "255"
+					inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox.TextSize = 12
+					inputBox.TextTransparency = 0.1
+					inputBox.TextXAlignment = Enum.TextXAlignment.Left
+					inputBox.AnchorPoint = Vector2.new(1, 0.5)
+					inputBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox.BackgroundTransparency = 0.95
+					inputBox.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputBox.BorderSizePixel = 0
+					inputBox.ClipsDescendants = true
+					inputBox.LayoutOrder = 1
+					inputBox.Position = UDim2.fromScale(1, 0.5)
+					inputBox.Size = UDim2.fromOffset(75, 25)
+
+					local inputBoxUICorner = Instance.new("UICorner")
+					inputBoxUICorner.Name = "InputBoxUICorner"
+					inputBoxUICorner.CornerRadius = UDim.new(0, 4)
+					inputBoxUICorner.Parent = inputBox
+
+					local inputBoxUIStroke = Instance.new("UIStroke")
+					inputBoxUIStroke.Name = "InputBoxUIStroke"
+					inputBoxUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					inputBoxUIStroke.Color = Color3.fromRGB(255, 255, 255)
+					inputBoxUIStroke.Transparency = 0.9
+					inputBoxUIStroke.Parent = inputBox
+
+					local inputBoxUISizeConstraint = Instance.new("UISizeConstraint")
+					inputBoxUISizeConstraint.Name = "InputBoxUISizeConstraint"
+					inputBoxUISizeConstraint.Parent = inputBox
+
+					local inputBoxUIPadding = Instance.new("UIPadding")
+					inputBoxUIPadding.Name = "InputBoxUIPadding"
+					inputBoxUIPadding.PaddingLeft = UDim.new(0, 8)
+					inputBoxUIPadding.PaddingRight = UDim.new(0, 10)
+					inputBoxUIPadding.Parent = inputBox
+
+					inputBox.Parent = red
+
+					red.Parent = inputs
+
+					local green = Instance.new("Frame")
+					green.Name = "Green"
+					green.AutomaticSize = Enum.AutomaticSize.XY
+					green.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					green.BackgroundTransparency = 1
+					green.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					green.BorderSizePixel = 0
+					green.LayoutOrder = 2
+					green.Size = UDim2.fromOffset(0, 38)
+
+					local inputName1 = Instance.new("TextLabel")
+					inputName1.Name = "InputName"
+					inputName1.FontFace = Font.new(assets.interFont)
+					inputName1.Text = "Green"
+					inputName1.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputName1.TextSize = 13
+					inputName1.TextTransparency = 0.5
+					inputName1.TextTruncate = Enum.TextTruncate.AtEnd
+					inputName1.TextXAlignment = Enum.TextXAlignment.Left
+					inputName1.TextYAlignment = Enum.TextYAlignment.Top
+					inputName1.AnchorPoint = Vector2.new(0, 0.5)
+					inputName1.AutomaticSize = Enum.AutomaticSize.XY
+					inputName1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputName1.BackgroundTransparency = 1
+					inputName1.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputName1.BorderSizePixel = 0
+					inputName1.LayoutOrder = 2
+					inputName1.Position = UDim2.fromScale(0, 0.5)
+					inputName1.Parent = green
+
+					local uIListLayout4 = Instance.new("UIListLayout")
+					uIListLayout4.Name = "UIListLayout"
+					uIListLayout4.Padding = UDim.new(0, 15)
+					uIListLayout4.FillDirection = Enum.FillDirection.Horizontal
+					uIListLayout4.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout4.VerticalAlignment = Enum.VerticalAlignment.Center
+					uIListLayout4.Parent = green
+
+					local inputBox1 = Instance.new("TextBox")
+					inputBox1.Name = "InputBox"
+					inputBox1.ClearTextOnFocus = false
+					inputBox1.FontFace = Font.new(assets.interFont)
+					inputBox1.Text = "255"
+					inputBox1.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox1.TextSize = 12
+					inputBox1.TextTransparency = 0.1
+					inputBox1.TextXAlignment = Enum.TextXAlignment.Left
+					inputBox1.AnchorPoint = Vector2.new(1, 0.5)
+					inputBox1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox1.BackgroundTransparency = 0.95
+					inputBox1.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputBox1.BorderSizePixel = 0
+					inputBox1.ClipsDescendants = true
+					inputBox1.LayoutOrder = 1
+					inputBox1.Position = UDim2.fromScale(1, 0.5)
+					inputBox1.Size = UDim2.fromOffset(75, 25)
+
+					local inputBoxUICorner1 = Instance.new("UICorner")
+					inputBoxUICorner1.Name = "InputBoxUICorner"
+					inputBoxUICorner1.CornerRadius = UDim.new(0, 4)
+					inputBoxUICorner1.Parent = inputBox1
+
+					local inputBoxUIStroke1 = Instance.new("UIStroke")
+					inputBoxUIStroke1.Name = "InputBoxUIStroke"
+					inputBoxUIStroke1.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					inputBoxUIStroke1.Color = Color3.fromRGB(255, 255, 255)
+					inputBoxUIStroke1.Transparency = 0.9
+					inputBoxUIStroke1.Parent = inputBox1
+
+					local inputBoxUISizeConstraint1 = Instance.new("UISizeConstraint")
+					inputBoxUISizeConstraint1.Name = "InputBoxUISizeConstraint"
+					inputBoxUISizeConstraint1.Parent = inputBox1
+
+					local inputBoxUIPadding1 = Instance.new("UIPadding")
+					inputBoxUIPadding1.Name = "InputBoxUIPadding"
+					inputBoxUIPadding1.PaddingLeft = UDim.new(0, 8)
+					inputBoxUIPadding1.PaddingRight = UDim.new(0, 10)
+					inputBoxUIPadding1.Parent = inputBox1
+
+					inputBox1.Parent = green
+
+					green.Parent = inputs
+
+					local blue = Instance.new("Frame")
+					blue.Name = "Blue"
+					blue.AutomaticSize = Enum.AutomaticSize.XY
+					blue.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					blue.BackgroundTransparency = 1
+					blue.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					blue.BorderSizePixel = 0
+					blue.LayoutOrder = 3
+					blue.Size = UDim2.fromOffset(0, 38)
+
+					local inputName2 = Instance.new("TextLabel")
+					inputName2.Name = "InputName"
+					inputName2.FontFace = Font.new(assets.interFont)
+					inputName2.Text = "Blue"
+					inputName2.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputName2.TextSize = 13
+					inputName2.TextTransparency = 0.5
+					inputName2.TextTruncate = Enum.TextTruncate.AtEnd
+					inputName2.TextXAlignment = Enum.TextXAlignment.Left
+					inputName2.TextYAlignment = Enum.TextYAlignment.Top
+					inputName2.AnchorPoint = Vector2.new(0, 0.5)
+					inputName2.AutomaticSize = Enum.AutomaticSize.XY
+					inputName2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputName2.BackgroundTransparency = 1
+					inputName2.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputName2.BorderSizePixel = 0
+					inputName2.LayoutOrder = 2
+					inputName2.Position = UDim2.fromScale(0, 0.5)
+					inputName2.Parent = blue
+
+					local uIListLayout5 = Instance.new("UIListLayout")
+					uIListLayout5.Name = "UIListLayout"
+					uIListLayout5.Padding = UDim.new(0, 15)
+					uIListLayout5.FillDirection = Enum.FillDirection.Horizontal
+					uIListLayout5.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout5.VerticalAlignment = Enum.VerticalAlignment.Center
+					uIListLayout5.Parent = blue
+
+					local inputBox2 = Instance.new("TextBox")
+					inputBox2.Name = "InputBox"
+					inputBox2.ClearTextOnFocus = false
+					inputBox2.FontFace = Font.new(assets.interFont)
+					inputBox2.Text = "255"
+					inputBox2.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox2.TextSize = 12
+					inputBox2.TextTransparency = 0.1
+					inputBox2.TextXAlignment = Enum.TextXAlignment.Left
+					inputBox2.AnchorPoint = Vector2.new(1, 0.5)
+					inputBox2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox2.BackgroundTransparency = 0.95
+					inputBox2.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputBox2.BorderSizePixel = 0
+					inputBox2.ClipsDescendants = true
+					inputBox2.LayoutOrder = 1
+					inputBox2.Position = UDim2.fromScale(1, 0.5)
+					inputBox2.Size = UDim2.fromOffset(75, 25)
+
+					local inputBoxUICorner2 = Instance.new("UICorner")
+					inputBoxUICorner2.Name = "InputBoxUICorner"
+					inputBoxUICorner2.CornerRadius = UDim.new(0, 4)
+					inputBoxUICorner2.Parent = inputBox2
+
+					local inputBoxUIStroke2 = Instance.new("UIStroke")
+					inputBoxUIStroke2.Name = "InputBoxUIStroke"
+					inputBoxUIStroke2.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					inputBoxUIStroke2.Color = Color3.fromRGB(255, 255, 255)
+					inputBoxUIStroke2.Transparency = 0.9
+					inputBoxUIStroke2.Parent = inputBox2
+
+					local inputBoxUISizeConstraint2 = Instance.new("UISizeConstraint")
+					inputBoxUISizeConstraint2.Name = "InputBoxUISizeConstraint"
+					inputBoxUISizeConstraint2.Parent = inputBox2
+
+					local inputBoxUIPadding2 = Instance.new("UIPadding")
+					inputBoxUIPadding2.Name = "InputBoxUIPadding"
+					inputBoxUIPadding2.PaddingLeft = UDim.new(0, 8)
+					inputBoxUIPadding2.PaddingRight = UDim.new(0, 10)
+					inputBoxUIPadding2.Parent = inputBox2
+
+					inputBox2.Parent = blue
+
+					blue.Parent = inputs
+
+					local alpha = Instance.new("Frame")
+					alpha.Name = "Alpha"
+					alpha.AutomaticSize = Enum.AutomaticSize.XY
+					alpha.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					alpha.BackgroundTransparency = 1
+					alpha.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					alpha.BorderSizePixel = 0
+					alpha.LayoutOrder = 4
+					alpha.Size = UDim2.fromOffset(0, 38)
+					alpha.Visible = isAlpha
+
+					local inputName3 = Instance.new("TextLabel")
+					inputName3.Name = "InputName"
+					inputName3.FontFace = Font.new(assets.interFont)
+					inputName3.Text = "Alpha"
+					inputName3.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputName3.TextSize = 13
+					inputName3.TextTransparency = 0.5
+					inputName3.TextTruncate = Enum.TextTruncate.AtEnd
+					inputName3.TextXAlignment = Enum.TextXAlignment.Left
+					inputName3.TextYAlignment = Enum.TextYAlignment.Top
+					inputName3.AnchorPoint = Vector2.new(0, 0.5)
+					inputName3.AutomaticSize = Enum.AutomaticSize.XY
+					inputName3.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputName3.BackgroundTransparency = 1
+					inputName3.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputName3.BorderSizePixel = 0
+					inputName3.LayoutOrder = 2
+					inputName3.Position = UDim2.fromScale(0, 0.5)
+					inputName3.Parent = alpha
+
+					local uIListLayout6 = Instance.new("UIListLayout")
+					uIListLayout6.Name = "UIListLayout"
+					uIListLayout6.Padding = UDim.new(0, 15)
+					uIListLayout6.FillDirection = Enum.FillDirection.Horizontal
+					uIListLayout6.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout6.VerticalAlignment = Enum.VerticalAlignment.Center
+					uIListLayout6.Parent = alpha
+
+					local inputBox3 = Instance.new("TextBox")
+					inputBox3.Name = "InputBox"
+					inputBox3.ClearTextOnFocus = false
+					inputBox3.FontFace = Font.new(assets.interFont)
+					inputBox3.Text = "0"
+					inputBox3.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox3.TextSize = 12
+					inputBox3.TextTransparency = 0.1
+					inputBox3.TextXAlignment = Enum.TextXAlignment.Left
+					inputBox3.AnchorPoint = Vector2.new(1, 0.5)
+					inputBox3.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox3.BackgroundTransparency = 0.95
+					inputBox3.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputBox3.BorderSizePixel = 0
+					inputBox3.ClipsDescendants = true
+					inputBox3.LayoutOrder = 1
+					inputBox3.Position = UDim2.fromScale(1, 0.5)
+					inputBox3.Size = UDim2.fromOffset(75, 25)
+
+					local inputBoxUICorner3 = Instance.new("UICorner")
+					inputBoxUICorner3.Name = "InputBoxUICorner"
+					inputBoxUICorner3.CornerRadius = UDim.new(0, 4)
+					inputBoxUICorner3.Parent = inputBox3
+
+					local inputBoxUIStroke3 = Instance.new("UIStroke")
+					inputBoxUIStroke3.Name = "InputBoxUIStroke"
+					inputBoxUIStroke3.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					inputBoxUIStroke3.Color = Color3.fromRGB(255, 255, 255)
+					inputBoxUIStroke3.Transparency = 0.9
+					inputBoxUIStroke3.Parent = inputBox3
+
+					local inputBoxUISizeConstraint3 = Instance.new("UISizeConstraint")
+					inputBoxUISizeConstraint3.Name = "InputBoxUISizeConstraint"
+					inputBoxUISizeConstraint3.Parent = inputBox3
+
+					local inputBoxUIPadding3 = Instance.new("UIPadding")
+					inputBoxUIPadding3.Name = "InputBoxUIPadding"
+					inputBoxUIPadding3.PaddingLeft = UDim.new(0, 8)
+					inputBoxUIPadding3.PaddingRight = UDim.new(0, 10)
+					inputBoxUIPadding3.Parent = inputBox3
+
+					inputBox3.Parent = alpha
+
+					alpha.Parent = inputs
+
+					local hex = Instance.new("Frame")
+					hex.Name = "Hex"
+					hex.AutomaticSize = Enum.AutomaticSize.XY
+					hex.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					hex.BackgroundTransparency = 1
+					hex.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					hex.BorderSizePixel = 0
+					hex.Size = UDim2.fromOffset(0, 38)
+
+					local inputName4 = Instance.new("TextLabel")
+					inputName4.Name = "InputName"
+					inputName4.FontFace = Font.new(assets.interFont)
+					inputName4.Text = "Hex"
+					inputName4.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputName4.TextSize = 13
+					inputName4.TextTransparency = 0.5
+					inputName4.TextTruncate = Enum.TextTruncate.AtEnd
+					inputName4.TextXAlignment = Enum.TextXAlignment.Left
+					inputName4.TextYAlignment = Enum.TextYAlignment.Top
+					inputName4.AnchorPoint = Vector2.new(0, 0.5)
+					inputName4.AutomaticSize = Enum.AutomaticSize.XY
+					inputName4.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputName4.BackgroundTransparency = 1
+					inputName4.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputName4.BorderSizePixel = 0
+					inputName4.LayoutOrder = 2
+					inputName4.Position = UDim2.fromScale(0, 0.5)
+					inputName4.Parent = hex
+
+					local uIListLayout7 = Instance.new("UIListLayout")
+					uIListLayout7.Name = "UIListLayout"
+					uIListLayout7.Padding = UDim.new(0, 15)
+					uIListLayout7.FillDirection = Enum.FillDirection.Horizontal
+					uIListLayout7.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout7.VerticalAlignment = Enum.VerticalAlignment.Center
+					uIListLayout7.Parent = hex
+
+					local inputBox4 = Instance.new("TextBox")
+					inputBox4.Name = "InputBox"
+					inputBox4.ClearTextOnFocus = false
+					inputBox4.CursorPosition = -1
+					inputBox4.FontFace = Font.new(assets.interFont)
+					inputBox4.Text = "255"
+					inputBox4.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox4.TextSize = 12
+					inputBox4.TextTransparency = 0.1
+					inputBox4.TextXAlignment = Enum.TextXAlignment.Left
+					inputBox4.AnchorPoint = Vector2.new(1, 0.5)
+					inputBox4.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox4.BackgroundTransparency = 0.95
+					inputBox4.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputBox4.BorderSizePixel = 0
+					inputBox4.ClipsDescendants = true
+					inputBox4.LayoutOrder = 1
+					inputBox4.Position = UDim2.fromScale(1, 0.5)
+					inputBox4.Size = UDim2.fromOffset(75, 25)
+
+					local inputBoxUICorner4 = Instance.new("UICorner")
+					inputBoxUICorner4.Name = "InputBoxUICorner"
+					inputBoxUICorner4.CornerRadius = UDim.new(0, 4)
+					inputBoxUICorner4.Parent = inputBox4
+
+					local inputBoxUIStroke4 = Instance.new("UIStroke")
+					inputBoxUIStroke4.Name = "InputBoxUIStroke"
+					inputBoxUIStroke4.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					inputBoxUIStroke4.Color = Color3.fromRGB(255, 255, 255)
+					inputBoxUIStroke4.Transparency = 0.9
+					inputBoxUIStroke4.Parent = inputBox4
+
+					local inputBoxUISizeConstraint4 = Instance.new("UISizeConstraint")
+					inputBoxUISizeConstraint4.Name = "InputBoxUISizeConstraint"
+					inputBoxUISizeConstraint4.Parent = inputBox4
+
+					local inputBoxUIPadding4 = Instance.new("UIPadding")
+					inputBoxUIPadding4.Name = "InputBoxUIPadding"
+					inputBoxUIPadding4.PaddingLeft = UDim.new(0, 8)
+					inputBoxUIPadding4.PaddingRight = UDim.new(0, 10)
+					inputBoxUIPadding4.Parent = inputBox4
+
+					inputBox4.Parent = hex
+
+					hex.Parent = inputs
+
+					inputs.Parent = wheel
+
+					local uIPadding = Instance.new("UIPadding")
+					uIPadding.Name = "UIPadding"
+					uIPadding.PaddingRight = UDim.new(0, 5)
+					uIPadding.Parent = wheel
+
+					wheel.Parent = colorOptions
+
+					local colorWells = Instance.new("Frame")
+					colorWells.Name = "ColorWells"
+					colorWells.AutomaticSize = Enum.AutomaticSize.Y
+					colorWells.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					colorWells.BackgroundTransparency = 1
+					colorWells.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					colorWells.BorderSizePixel = 0
+					colorWells.LayoutOrder = 2
+					colorWells.Size = UDim2.fromScale(1, 0)
+
+					local uIGridLayout = Instance.new("UIGridLayout")
+					uIGridLayout.Name = "UIGridLayout"
+					uIGridLayout.CellPadding = UDim2.fromOffset(10, 0)
+					uIGridLayout.CellSize = UDim2.new(0.5, -5, 0, 30)
+					uIGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+					uIGridLayout.Parent = colorWells
+
+					local newColor = Instance.new("ImageLabel")
+					newColor.Name = "NewColor"
+					newColor.Image = assets.grid
+					newColor.ScaleType = Enum.ScaleType.Tile
+					newColor.TileSize = UDim2.fromOffset(500, 500)
+					newColor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					newColor.BackgroundTransparency = 1
+					newColor.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					newColor.BorderSizePixel = 0
+					newColor.Size = UDim2.fromOffset(100, 100)
+
+					local uICorner2 = Instance.new("UICorner")
+					uICorner2.Name = "UICorner"
+					uICorner2.Parent = newColor
+
+					local color = Instance.new("Frame")
+					color.Name = "Color"
+					color.AnchorPoint = Vector2.new(0.5, 0.5)
+					color.BorderColor3 = Color3.fromRGB(27, 42, 53)
+					color.BorderSizePixel = 0
+					color.Position = UDim2.fromScale(0.5, 0.5)
+					color.Size = UDim2.new(1, 1, 1, 1)
+
+					local uICorner3 = Instance.new("UICorner")
+					uICorner3.Name = "UICorner"
+					uICorner3.Parent = color
+
+					color.Parent = newColor
+
+					newColor.Parent = colorWells
+
+					local oldColor = Instance.new("ImageLabel")
+					oldColor.Name = "OldColor"
+					oldColor.Image = assets.grid
+					oldColor.ScaleType = Enum.ScaleType.Tile
+					oldColor.TileSize = UDim2.fromOffset(500, 500)
+					oldColor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					oldColor.BackgroundTransparency = 1
+					oldColor.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					oldColor.BorderSizePixel = 0
+					oldColor.LayoutOrder = 1
+					oldColor.Size = UDim2.fromOffset(100, 100)
+
+					local uICorner4 = Instance.new("UICorner")
+					uICorner4.Name = "UICorner"
+					uICorner4.Parent = oldColor
+
+					local color1 = Instance.new("Frame")
+					color1.Name = "Color"
+					color1.AnchorPoint = Vector2.new(0.5, 0.5)
+					color1.BorderColor3 = Color3.fromRGB(27, 42, 53)
+					color1.BorderSizePixel = 0
+					color1.Position = UDim2.fromScale(0.5, 0.5)
+					color1.Size = UDim2.new(1, 1, 1, 1)
+
+					local uICorner5 = Instance.new("UICorner")
+					uICorner5.Name = "UICorner"
+					uICorner5.Parent = color1
+
+					color1.Parent = oldColor
+
+					oldColor.Parent = colorWells
+
+					colorWells.Parent = colorOptions
+
+					colorOptions.Parent = prompt
+
+					local interactions = Instance.new("Frame")
+					interactions.Name = "Interactions"
+					interactions.AutomaticSize = Enum.AutomaticSize.Y
+					interactions.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					interactions.BackgroundTransparency = 1
+					interactions.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					interactions.BorderSizePixel = 0
+					interactions.LayoutOrder = 2
+					interactions.Size = UDim2.fromScale(1, 0)
+
+					local uIListLayout8 = Instance.new("UIListLayout")
+					uIListLayout8.Name = "UIListLayout"
+					uIListLayout8.Padding = UDim.new(0, 10)
+					uIListLayout8.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout8.Parent = interactions
+
+					local confirm = Instance.new("TextButton")
+					confirm.Name = "Confirm"
+					confirm.FontFace = Font.new(
+						"rbxassetid://12187365364",
+						Enum.FontWeight.Medium,
+						Enum.FontStyle.Normal
+					)
+					confirm.Text = "Confirm"
+					confirm.TextColor3 = Color3.fromRGB(255, 255, 255)
+					confirm.TextSize = 15
+					confirm.TextTransparency = 0.5
+					confirm.TextTruncate = Enum.TextTruncate.AtEnd
+					confirm.AutoButtonColor = false
+					confirm.AutomaticSize = Enum.AutomaticSize.Y
+					confirm.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+					confirm.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					confirm.BorderSizePixel = 0
+					confirm.Size = UDim2.fromScale(1, 0)
+
+					local uIPadding1 = Instance.new("UIPadding")
+					uIPadding1.Name = "UIPadding"
+					uIPadding1.PaddingBottom = UDim.new(0, 9)
+					uIPadding1.PaddingLeft = UDim.new(0, 10)
+					uIPadding1.PaddingRight = UDim.new(0, 10)
+					uIPadding1.PaddingTop = UDim.new(0, 9)
+					uIPadding1.Parent = confirm
+
+					local baseUICorner = Instance.new("UICorner")
+					baseUICorner.Name = "BaseUICorner"
+					baseUICorner.CornerRadius = UDim.new(0, 10)
+					baseUICorner.Parent = confirm
+
+					confirm.Parent = interactions
+
+					local cancel = Instance.new("TextButton")
+					cancel.Name = "Cancel"
+					cancel.FontFace = Font.new(
+						"rbxassetid://12187365364",
+						Enum.FontWeight.Medium,
+						Enum.FontStyle.Normal
+					)
+					cancel.Text = "Cancel"
+					cancel.TextColor3 = Color3.fromRGB(255, 255, 255)
+					cancel.TextSize = 15
+					cancel.TextTransparency = 0.5
+					cancel.TextTruncate = Enum.TextTruncate.AtEnd
+					cancel.AutoButtonColor = false
+					cancel.AutomaticSize = Enum.AutomaticSize.Y
+					cancel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+					cancel.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					cancel.BorderSizePixel = 0
+					cancel.Size = UDim2.fromScale(1, 0)
+
+					local baseUICorner1 = Instance.new("UICorner")
+					baseUICorner1.Name = "BaseUICorner"
+					baseUICorner1.CornerRadius = UDim.new(0, 10)
+					baseUICorner1.Parent = cancel
+
+					local uIPadding2 = Instance.new("UIPadding")
+					uIPadding2.Name = "UIPadding"
+					uIPadding2.PaddingBottom = UDim.new(0, 9)
+					uIPadding2.PaddingLeft = UDim.new(0, 10)
+					uIPadding2.PaddingRight = UDim.new(0, 10)
+					uIPadding2.PaddingTop = UDim.new(0, 9)
+					uIPadding2.Parent = cancel
+
+					cancel.Parent = interactions
+
+					local uIPadding3 = Instance.new("UIPadding")
+					uIPadding3.Name = "UIPadding"
+					uIPadding3.PaddingTop = UDim.new(0, 10)
+					uIPadding3.Parent = interactions
+
+					interactions.Parent = prompt
+
+					local globalSettingsUIPadding = Instance.new("UIPadding")
+					globalSettingsUIPadding.Name = "GlobalSettingsUIPadding"
+					globalSettingsUIPadding.PaddingBottom = UDim.new(0, 20)
+					globalSettingsUIPadding.PaddingLeft = UDim.new(0, 20)
+					globalSettingsUIPadding.PaddingRight = UDim.new(0, 20)
+					globalSettingsUIPadding.PaddingTop = UDim.new(0, 20)
+					globalSettingsUIPadding.Parent = prompt
+
+					local paragraph = Instance.new("Frame")
+					paragraph.Name = "Paragraph"
+					paragraph.AutomaticSize = Enum.AutomaticSize.Y
+					paragraph.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					paragraph.BackgroundTransparency = 1
+					paragraph.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					paragraph.BorderSizePixel = 0
+					paragraph.Size = UDim2.fromScale(1, 0)
+
+					local paragraphHeader = Instance.new("TextLabel")
+					paragraphHeader.Name = "ParagraphHeader"
+					paragraphHeader.FontFace = Font.new(
+						"rbxassetid://12187365364",
+						Enum.FontWeight.SemiBold,
+						Enum.FontStyle.Normal
+					)
+					paragraphHeader.RichText = true
+					paragraphHeader.Text = ColorpickerFunctions.Settings.Name
+					paragraphHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
+					paragraphHeader.TextSize = 18
+					paragraphHeader.TextTransparency = 0.4
+					paragraphHeader.TextWrapped = true
+					paragraphHeader.TextYAlignment = Enum.TextYAlignment.Top
+					paragraphHeader.AutomaticSize = Enum.AutomaticSize.XY
+					paragraphHeader.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					paragraphHeader.BackgroundTransparency = 1
+					paragraphHeader.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					paragraphHeader.BorderSizePixel = 0
+					paragraphHeader.Size = UDim2.fromScale(1, 0)
+					paragraphHeader.Parent = paragraph
+
+					local uIListLayout9 = Instance.new("UIListLayout")
+					uIListLayout9.Name = "UIListLayout"
+					uIListLayout9.Padding = UDim.new(0, 15)
+					uIListLayout9.HorizontalAlignment = Enum.HorizontalAlignment.Center
+					uIListLayout9.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout9.Parent = paragraph
+
+					local uIPadding4 = Instance.new("UIPadding")
+					uIPadding4.Name = "UIPadding"
+					uIPadding4.PaddingBottom = UDim.new(0, 15)
+					uIPadding4.Parent = paragraph
+
+					local line = Instance.new("Frame")
+					line.Name = "Line"
+					line.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					line.BackgroundTransparency = 0.9
+					line.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					line.BorderSizePixel = 0
+					line.LayoutOrder = 1
+					line.Size = UDim2.new(1, 0, 0, 1)
+					line.Parent = paragraph
+
+					paragraph.Parent = prompt
+
+					prompt.Parent = colorPicker
+
+					colorPicker.Parent = base
+
+					local fromHSV, fromRGB, v2, udim2 = Color3.fromHSV, Color3.fromRGB, Vector2.new, UDim2.new
+
+					local wheel = wheel1
+					local ring = target
+					local slider = value
+					local colour = color
+
+					local modifierInputs = {
+						Hex = hex.InputBox,
+						Red = red.InputBox,
+						Green = green.InputBox,
+						Blue = blue.InputBox,
+						Alpha = alpha.InputBox
+					}
+
+					local Mouse = LocalPlayer:GetMouse()
+
+					local WheelDown, SlideDown = false, false
+					local hue, saturation, value = 0, 0, 1
+
+					local function toPolar(v)
+						return math.atan2(v.y, v.x), v.magnitude
+					end
+
+					local function radToDeg(x)
+						return ((x + math.pi) / (2 * math.pi)) * 360
+					end
+
+					local function degToRad(degrees)
+						return degrees * (math.pi / 180)
+					end
+
+					local function hexToRGB(hex)
+						hex = hex:gsub("#","")
+						if #hex ~= 6 then return 0, 0, 0 end
+						local r = tonumber(hex:sub(1, 2), 16) or 0
+						local g = tonumber(hex:sub(3, 4), 16) or 0
+						local b = tonumber(hex:sub(5, 6), 16) or 0
+						return r, g, b
+					end
+
+					local function clampInput(value, min, max)
+						local num = tonumber(value)
+						if num then
+							return math.clamp(num, min, max)
 						end
+						return min
 					end
-					applyColor(false)
 
-					local draggingSV, draggingHue, draggingAlpha = false, false, false
-					local function updSV(px, py)
-						sat = math.clamp((px - square.AbsolutePosition.X) / math.max(1, square.AbsoluteSize.X), 0, 1)
-						val = 1 - math.clamp((py - square.AbsolutePosition.Y) / math.max(1, square.AbsoluteSize.Y), 0, 1)
-						applyColor(true)
+					local function update()
+						local c = fromHSV(hue, saturation, value)
+						colour.BackgroundColor3 = c
+						colour.BackgroundTransparency = clampInput(modifierInputs.Alpha.Text, 0, 1)
+
+						modifierInputs.Red.Text = tostring(math.floor(c.r * 255 + 0.5))
+						modifierInputs.Green.Text = tostring(math.floor(c.g * 255 + 0.5))
+						modifierInputs.Blue.Text = tostring(math.floor(c.b * 255 + 0.5))
+						modifierInputs.Alpha.Text = clampInput(modifierInputs.Alpha.Text, 0, 1)
+
+						local hexColor = string.format("#%02X%02X%02X", 
+							math.floor(c.r * 255 + 0.5),
+							math.floor(c.g * 255 + 0.5),
+							math.floor(c.b * 255 + 0.5))
+						modifierInputs.Hex.Text = hexColor
 					end
-					local function updHue(py)
-						hue = math.clamp((py - hueBar.AbsolutePosition.Y) / math.max(1, hueBar.AbsoluteSize.Y), 0, 1)
-						applyColor(true)
+
+					local function UpdateSlide(iX)
+						local rY = iX - slider.AbsolutePosition.X
+						local cY = math.clamp(rY, 0, slider.AbsoluteSize.X - slide.AbsoluteSize.X)
+						slide.Position = udim2(0, cY, 0.5, 0)
+						value = 1 - (cY / (slider.AbsoluteSize.X - slide.AbsoluteSize.X))
+						update()
 					end
-					local function updAlpha(py)
-						alpha = math.clamp((py - alphaBar.AbsolutePosition.Y) / math.max(1, alphaBar.AbsoluteSize.Y), 0, 1)
-						applyColor(true)
+
+					local function UpdateRing(iX, iY)
+						local r = wheel.AbsoluteSize.x / 2
+						local d = v2(iX, iY) - wheel.AbsolutePosition - wheel.AbsoluteSize / 2
+
+						if d:Dot(d) > r * r then
+							d = d.unit * r
+						end
+
+						ring.Position = udim2(0.5, d.x, 0.5, d.y)
+						local phi, len = toPolar(d * v2(1, -1))
+						hue, saturation = radToDeg(phi) / 360, math.clamp(len / r, 0, 1)
+						slider.BackgroundColor3 = fromHSV(hue, saturation, 1)
+						update()
 					end
-					square.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then draggingSV = true; updSV(i.Position.X, i.Position.Y) end end)
-					hueBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then draggingHue = true; updHue(i.Position.Y) end end)
-					alphaBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then draggingAlpha = true; updAlpha(i.Position.Y) end end)
-					UserInputService.InputChanged:Connect(function(i)
-						if i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch then
-							if draggingSV then updSV(i.Position.X, i.Position.Y) end
-							if draggingHue then updHue(i.Position.Y) end
-							if draggingAlpha then updAlpha(i.Position.Y) end
+
+					local function UpdateSlideFromValue(value)
+						local cY = (1 - value) * (slider.AbsoluteSize.X - slide.AbsoluteSize.X)
+						slide.Position = UDim2.new(0, cY, 0.5, 0)
+					end
+
+					local function UpdateRingFromHSV(hue, saturation)
+						local r = wheel.AbsoluteSize.X / 2
+						local phi = degToRad(hue * 360)
+						local len = saturation * r
+						local x = len * math.cos(phi)
+						local y = len * math.sin(phi)
+
+						ring.Position = UDim2.new(0.5, -x, 0.5, y)
+						slider.BackgroundColor3 = fromHSV(hue, saturation, 1)
+					end
+
+					local function updateFromRGB()
+						local r = clampInput(modifierInputs.Red.Text, 0, 255)
+						local g = clampInput(modifierInputs.Green.Text, 0, 255)
+						local b = clampInput(modifierInputs.Blue.Text, 0, 255)
+						modifierInputs.Red.Text = r
+						modifierInputs.Green.Text = g
+						modifierInputs.Blue.Text = b
+
+						hue, saturation, value = Color3.fromRGB(r, g, b):ToHSV()
+
+						UpdateSlideFromValue(value)
+						UpdateRingFromHSV(hue, saturation)
+						update()
+					end
+
+					local function updateFromHex()
+						local hex = modifierInputs.Hex.Text
+						local r, g, b = hexToRGB(hex)
+
+						r = clampInput(r, 0, 255)
+						g = clampInput(g, 0, 255)
+						b = clampInput(b, 0, 255)
+
+						modifierInputs.Red.Text = r
+						modifierInputs.Green.Text = g
+						modifierInputs.Blue.Text = b
+
+						hue, saturation, value = Color3.fromRGB(r, g, b):ToHSV()
+						UpdateSlideFromValue(value)
+						UpdateRingFromHSV(hue, saturation)
+						update()
+					end
+
+					local function updateFromSettings()
+						local r = math.floor(ColorpickerFunctions.Color.R * 255 + 0.5)
+						local g = math.floor(ColorpickerFunctions.Color.G * 255 + 0.5)
+						local b = math.floor(ColorpickerFunctions.Color.B * 255 + 0.5)
+						modifierInputs.Red.Text = r
+						modifierInputs.Green.Text = g
+						modifierInputs.Blue.Text = b
+						modifierInputs.Alpha.Text = isAlpha and ColorpickerFunctions.Alpha or 0
+
+						local hexColor = string.format("#%02X%02X%02X", r,g,b)
+						modifierInputs.Hex.Text = hexColor
+
+						hue, saturation, value = Color3.fromRGB(r, g, b):ToHSV()
+
+						color1.BackgroundColor3 = ColorpickerFunctions.Color
+						color1.BackgroundTransparency = isAlpha and ColorpickerFunctions.Alpha or 0
+
+						colour.BackgroundColor3 = Color3.fromRGB(r,g,b)
+						colour.BackgroundTransparency = isAlpha and ColorpickerFunctions.Alpha or 0
+
+						UpdateSlideFromValue(value)
+						UpdateRingFromHSV(hue, saturation)
+					end
+
+					wheel.InputBegan:Connect(function(input)
+						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+							WheelDown = true
+							UpdateRing(Mouse.X, Mouse.Y)
 						end
 					end)
-					UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then draggingSV = false; draggingHue = false; draggingAlpha = false end end)
 
-					local open = false
-					interact.MouseButton1Click:Connect(function()
-						open = not open
-						if open then
-							panel.Visible = true
-							panel.Size = UDim2.new(1, 0, 0, 0)
-							Tween(panel, TweenInfo.new(0.16, Enum.EasingStyle.Quad), { Size = UDim2.new(1, 0, 0, 152) }):Play()
-						else
-							Tween(panel, TweenInfo.new(0.14, Enum.EasingStyle.Quad), { Size = UDim2.new(1, 0, 0, 0) }):Play()
-							task.delay(0.14, function() if not open then panel.Visible = false end end)
+					slider.InputBegan:Connect(function(input)
+						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+							SlideDown = true
+							UpdateSlide(Mouse.X)
 						end
 					end)
 
-					function ColorpickerFunctions:UpdateName(New) colorpickerName.Text = New end
-					function ColorpickerFunctions:SetVisibility(State) colorpicker.Visible = State end
-					function ColorpickerFunctions:GetColor() return ColorpickerFunctions.Color end
-					function ColorpickerFunctions:SetColor(color3, fireCallback)
+					slider.InputEnded:Connect(function(input)
+						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+							SlideDown = false
+						end
+					end)
+
+					wheel.InputEnded:Connect(function(input)
+						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+							WheelDown = false
+						end
+					end)
+
+					UserInputService.InputChanged:Connect(function(input)
+						if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+							if SlideDown then
+								UpdateSlide(Mouse.X)
+							elseif WheelDown then
+								UpdateRing(Mouse.X, Mouse.Y)
+							end
+						end
+					end)
+
+					local function onFocusEnter(instance)
+						local placeholder = instance.Text
+						instance.Text = ""
+						instance.PlaceholderText = placeholder
+					end
+
+					modifierInputs.Hex.FocusLost:Connect(updateFromHex)
+					modifierInputs.Red.FocusLost:Connect(updateFromRGB)
+					modifierInputs.Green.FocusLost:Connect(updateFromRGB)
+					modifierInputs.Blue.FocusLost:Connect(updateFromRGB)
+					modifierInputs.Alpha.FocusLost:Connect(update)
+
+					modifierInputs.Hex.Focused:Connect(function()
+						onFocusEnter(modifierInputs.Hex)
+					end)
+					modifierInputs.Red.Focused:Connect(function()
+						onFocusEnter(modifierInputs.Red)
+					end)
+					modifierInputs.Green.Focused:Connect(function()
+						onFocusEnter(modifierInputs.Green)
+					end)
+					modifierInputs.Blue.Focused:Connect(function()
+						onFocusEnter(modifierInputs.Blue)
+					end)
+					modifierInputs.Alpha.Focused:Connect(function()
+						onFocusEnter(modifierInputs.Alpha)
+					end)
+
+					local function makeCanvas()
+						local ColorPickerCanvas = Instance.new("CanvasGroup")
+						ColorPickerCanvas.Name = "ColorPickerCanvas"
+						ColorPickerCanvas.BackgroundTransparency = 1
+						ColorPickerCanvas.BorderSizePixel = 0
+						ColorPickerCanvas.Size = UDim2.fromScale(1, 1)
+						ColorPickerCanvas.ZIndex = 5
+						ColorPickerCanvas.GroupTransparency = 1
+						ColorPickerCanvas.Parent = base
+						ColorPickerCanvas.Visible = false
+						return ColorPickerCanvas
+					end
+
+					local function transition(isIn)
+						local canvas = makeCanvas()
+						local tweenTransparency = isIn and 0 or 1
+						local tweenScale = isIn and 1 or 0.95
+						local stateTransparency = isIn and 1 or 0
+						local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Sine)
+						local canvasTween = Tween(canvas, tweenInfo, { GroupTransparency = tweenTransparency })
+						local scaleTween = Tween(promptUIScale, tweenInfo, { Scale = tweenScale })
+
+						colorPicker.Visible = true
+						colorPicker.Parent = canvas
+						canvas.Visible = true
+						canvas.GroupTransparency = stateTransparency
+						canvasTween:Play()
+						scaleTween:Play()
+						canvasTween.Completed:Wait()
+
+						if not isIn then
+							colorPicker.Visible = false
+							canvas.Visible = false
+						end
+
+						colorPicker.Parent = base
+						canvas:Destroy()
+					end
+
+					local function colorpickerIn()
+						transition(true)
+					end
+
+					local function colorpickerOut()
+						transition(false)
+					end
+
+					interact.MouseButton1Click:Connect(colorpickerIn)
+
+					cancel.MouseButton1Click:Connect(colorpickerOut)
+					confirm.MouseButton1Click:Connect(function()
+						colorpickerOut()
+						local c = fromHSV(hue, saturation, value)
+						ColorpickerFunctions.Color = Color3.fromRGB(c.r * 255, c.g * 255, c.b * 255)
+						ColorpickerFunctions.Alpha = isAlpha and clampInput(modifierInputs.Alpha.Text, 0, 1)
+
+						color1.BackgroundColor3 = ColorpickerFunctions.Color
+						color1.BackgroundTransparency = isAlpha and ColorpickerFunctions.Alpha or 0
+
+						colorC.BackgroundColor3 = ColorpickerFunctions.Color
+						colorC.BackgroundTransparency = isAlpha and ColorpickerFunctions.Alpha or 0
+
+						if ColorpickerFunctions.Settings.Callback then
+							task.spawn(function()
+								ColorpickerFunctions.Settings.Callback(ColorpickerFunctions.Color, isAlpha and ColorpickerFunctions.Alpha)
+							end)
+						end
+					end)
+
+					updateFromSettings()
+
+					function ColorpickerFunctions:UpdateName(New)
+						colorpickerName.Text = New
+					end
+					function ColorpickerFunctions:SetVisibility(State)
+						colorpicker.Visible = State
+					end
+
+					function ColorpickerFunctions:SetColor(color3)
 						ColorpickerFunctions.Color = color3
-						hue, sat, val = Color3.new(color3.R, color3.G, color3.B):ToHSV()
-						applyColor(fireCallback ~= false)
+						colorC.BackgroundColor3 = color3
+
+						local r = math.floor(ColorpickerFunctions.Color.R * 255 + 0.5)
+						local g = math.floor(ColorpickerFunctions.Color.G * 255 + 0.5)
+						local b = math.floor(ColorpickerFunctions.Color.B * 255 + 0.5)
+						modifierInputs.Red.Text = r
+						modifierInputs.Green.Text = g
+						modifierInputs.Blue.Text = b
+
+						local hexColor = string.format("#%02X%02X%02X", r,g,b)
+						modifierInputs.Hex.Text = hexColor
+
+						hue, saturation, value = Color3.fromRGB(r, g, b):ToHSV()
+
+						color1.BackgroundColor3 = ColorpickerFunctions.Color
+						colour.BackgroundColor3 = Color3.fromRGB(r,g,b)
+
+						UpdateSlideFromValue(value)
+						UpdateRingFromHSV(hue, saturation)
+
+						if ColorpickerFunctions.Settings.Callback then
+							task.spawn(function()
+								ColorpickerFunctions.Settings.Callback(ColorpickerFunctions.Color, isAlpha and ColorpickerFunctions.Alpha)
+							end)
+						end
 					end
-					function ColorpickerFunctions:SetAlpha(a) alpha = math.clamp(tonumber(a) or 0, 0, 1) applyColor(false) end
+
+					function ColorpickerFunctions:SetAlpha(alpha)
+						ColorpickerFunctions.Alpha = alpha
+						colorC.Transparency = alpha
+						updateFromSettings()
+					end
+
 					if Flag then
 						MacLib.Options[Flag] = ColorpickerFunctions
 					end
@@ -4569,7 +4521,7 @@ function MacLib:Window(Settings)
 					return ParagraphFunctions
 				end
 
-				function SectionFunctions:Divider(Settings)
+				function SectionFunctions:Divider()
 					local DividerFunctions = {}
 
 					local divider = Instance.new("Frame")
@@ -4603,32 +4555,6 @@ function MacLib:Window(Settings)
 					line.BorderSizePixel = 0
 					line.Size = UDim2.new(1, 0, 0, 1)
 					line.Parent = divider
-
-					-- Y2k: optional label -> "Text ─────────"
-					if Settings and Settings.Text then
-						uIListLayout.FillDirection = Enum.FillDirection.Horizontal
-						uIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-						uIListLayout.Padding = UDim.new(0, 8)
-						local label = Instance.new("TextLabel")
-						label.Name = "Text"
-						label.FontFace = Font.new(assets.interFont, Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-						label.Text = Settings.Text
-						label.TextColor3 = Color3.fromRGB(255, 255, 255)
-						label.TextTransparency = 0.5
-						label.TextSize = 12
-						label.AutomaticSize = Enum.AutomaticSize.XY
-						label.BackgroundTransparency = 1
-						label.LayoutOrder = 1
-						label.Parent = divider
-						line.LayoutOrder = 2
-						line.Size = UDim2.new(0, 0, 0, 1)
-						local flex = Instance.new("UIFlexItem")
-						flex.FlexMode = Enum.UIFlexMode.Fill
-						flex.Parent = line
-						local lineL = Instance.new("Frame")
-						lineL.Name = "LineL" lineL.BackgroundColor3 = Color3.fromRGB(255, 255, 255) lineL.BackgroundTransparency = 0.9 lineL.BorderSizePixel = 0 lineL.Size = UDim2.new(0, 0, 0, 1) lineL.LayoutOrder = 0 lineL.Parent = divider
-						local flexL = Instance.new("UIFlexItem") flexL.FlexMode = Enum.UIFlexMode.Fill flexL.Parent = lineL
-					end
 
 					function DividerFunctions:Remove()
 						divider:Destroy()
@@ -4693,23 +4619,11 @@ function MacLib:Window(Settings)
 							TextTransparency = (i == tabSwitcher and 0.1 or 0.5)
 						}):Play()
 					end
-					if tabInfo.accent then
-						tabInfo.active = (i == tabSwitcher)
-						Tween(tabInfo.accent, TweenInfo.new(easetime, Enum.EasingStyle.Sine), {
-							BackgroundTransparency = (i == tabSwitcher and 0 or 1)
-						}):Play()
-					end
 				end
 
-				local _tc = tabs[tabSwitcher].tabContent
-				_tc.Parent = content
-				currentTabInstance = _tc
+				tabs[tabSwitcher].tabContent.Parent = content
+				currentTabInstance = tabs[tabSwitcher].tabContent
 				currentTab.Text = Settings.Name
-				-- Y2k: tab-switch slide-in animation (content rests at y=63, below the topbar)
-				pcall(function()
-					_tc.Position = UDim2.fromOffset(0, 79)
-					Tween(_tc, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = UDim2.fromOffset(0, 63) }):Play()
-				end)
 			end
 
 			tabSwitcher.MouseButton1Click:Connect(function()
@@ -4853,8 +4767,6 @@ function MacLib:Window(Settings)
 				tabStroke = tabSwitcherUIStroke,
 				switcherImage = tabImage,
 				switcherName = tabSwitcherName,
-				accent = tabAccent,
-				active = false,
 			}
 
 			return TabFunctions
@@ -4870,49 +4782,13 @@ function MacLib:Window(Settings)
 		notification.Name = "Notification"
 		notification.AnchorPoint = Vector2.new(0.5, 0.5)
 		notification.AutomaticSize = Enum.AutomaticSize.Y
-		notification.BackgroundColor3 = Y2kTheme.Background
+		notification.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 		notification.BorderColor3 = Color3.fromRGB(0, 0, 0)
 		notification.BorderSizePixel = 0
 		notification.Position = UDim2.fromScale(0.5, 0.5)
 		notification.Size = UDim2.fromOffset(Settings.SizeX or 250, 0)
 
 		notification.Parent = notifications
-
-		do  -- Y2k premium notification: accent pill, depth gradient, sound
-			local kw = string.lower(tostring(Settings.Title or "") .. " " .. tostring(Settings.Description or ""))
-			local stripeCol = Y2kTheme.Accent
-			if kw:find("success") or kw:find("done") or kw:find("loaded") or kw:find("enabled") or kw:find("complete") then
-				stripeCol = Color3.fromRGB(64, 214, 124)
-			elseif kw:find("error") or kw:find("fail") or kw:find("warn") or kw:find("alert") or kw:find("invalid") or kw:find("denied") then
-				stripeCol = Color3.fromRGB(255, 90, 95)
-			end
-			local stripe = Instance.new("Frame")
-			stripe.Name = "AccentStripe"
-			stripe.AnchorPoint = Vector2.new(0, 0.5)
-			stripe.Position = UDim2.new(0, 5, 0.5, 0)
-			stripe.Size = UDim2.new(0, 3, 1, -12)
-			stripe.BackgroundColor3 = stripeCol
-			stripe.BorderSizePixel = 0
-			stripe.ZIndex = 4
-			stripe.Parent = notification
-			local sc = Instance.new("UICorner")
-			sc.CornerRadius = UDim.new(1, 0)
-			sc.Parent = stripe
-			local ngrad = Instance.new("UIGradient")
-			ngrad.Rotation = 90
-			ngrad.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(212, 214, 226))
-			ngrad.Parent = notification
-			if MacLib.NotifySound ~= false then
-				pcall(function()
-					local snd = Instance.new("Sound")
-					snd.SoundId = MacLib.NotifySoundId or "rbxassetid://9118823106"
-					snd.Volume = 0.3
-					snd.Parent = notification
-					snd:Play()
-					game:GetService("Debris"):AddItem(snd, 3)
-				end)
-			end
-		end
 
 		local notificationUIStroke = Instance.new("UIStroke")
 		notificationUIStroke.Name = "NotificationUIStroke"
@@ -5002,7 +4878,7 @@ function MacLib:Window(Settings)
 		local notificationUIPadding = Instance.new("UIPadding")
 		notificationUIPadding.Name = "NotificationUIPadding"
 		notificationUIPadding.PaddingBottom = UDim.new(0, 12)
-		notificationUIPadding.PaddingLeft = UDim.new(0, 16)
+		notificationUIPadding.PaddingLeft = UDim.new(0, 10)
 		notificationUIPadding.PaddingRight = UDim.new(0, 10)
 		notificationUIPadding.PaddingTop = UDim.new(0, 10)
 		notificationUIPadding.Parent = notificationInformation
@@ -5141,7 +5017,7 @@ function MacLib:Window(Settings)
 		prompt.Name = "Prompt"
 		prompt.AnchorPoint = Vector2.new(0.5, 0.5)
 		prompt.AutomaticSize = Enum.AutomaticSize.Y
-		prompt.BackgroundColor3 = Y2kTheme.Background
+		prompt.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 		prompt.BorderColor3 = Color3.fromRGB(0, 0, 0)
 		prompt.BorderSizePixel = 0
 		prompt.Position = UDim2.fromScale(0.5, 0.5)
@@ -5390,13 +5266,9 @@ function MacLib:Window(Settings)
 
 	function WindowFunctions:Unload()
 		if onUnloadCallback then
-			onUnloadCallback()
+			onUnloadCallback()  
 		end
 		macLib:Destroy()
-		for _, g in ipairs(Y2kExtraGuis) do pcall(function() g:Destroy() end) end
-		table.clear(Y2kExtraGuis)
-		table.clear(Y2kBinds)
-		Y2kBindsRefresh = nil
 		unloaded = true
 	end
 
@@ -5698,49 +5570,6 @@ function MacLib:Window(Settings)
 		return true
 	end
 
-	local function y2kB64Encode(s)
-		local f = (crypt and crypt.base64encode) or (crypt and crypt.base64 and crypt.base64.encode)
-			or (base64 and base64.encode) or (syn and syn.crypt and syn.crypt.base64 and syn.crypt.base64.encode)
-		if f then local ok, r = pcall(f, s); if ok then return r end end
-		return s
-	end
-	local function y2kB64Decode(s)
-		local f = (crypt and crypt.base64decode) or (crypt and crypt.base64 and crypt.base64.decode)
-			or (base64 and base64.decode) or (syn and syn.crypt and syn.crypt.base64 and syn.crypt.base64.decode)
-		if f then local ok, r = pcall(f, s); if ok then return r end end
-		return s
-	end
-
-	function MacLib:ExportConfigString()
-		local data = { objects = {} }
-		for flag, option in next, MacLib.Options do
-			if ClassParser[option.Class] and not option.IgnoreConfig then
-				table.insert(data.objects, ClassParser[option.Class].Save(flag, option))
-			end
-		end
-		local ok, enc = pcall(HttpService.JSONEncode, HttpService, data)
-		if not ok then return nil, "Unable to encode config" end
-		return y2kB64Encode(enc)
-	end
-
-	function MacLib:ImportConfigString(str)
-		if type(str) ~= "string" or str == "" then return false, "Empty config string" end
-		local decoded = y2kB64Decode(str)
-		local ok, data = pcall(HttpService.JSONDecode, HttpService, decoded)
-		if not ok then
-			ok, data = pcall(HttpService.JSONDecode, HttpService, str) -- maybe it was raw JSON
-		end
-		if not ok or type(data) ~= "table" or type(data.objects) ~= "table" then
-			return false, "Invalid config string"
-		end
-		for _, option in next, data.objects do
-			if ClassParser[option.type] then
-				task.spawn(function() ClassParser[option.type].Load(option.flag, option) end)
-			end
-		end
-		return true
-	end
-
 	function MacLib:RefreshConfigList()
 		if isStudio or not (isfolder and listfiles) then return "Config system unavailable." end
 
@@ -5787,8 +5616,8 @@ end
 
 function MacLib:Demo()
 	local Window = MacLib:Window({
-		Title = "Y2k Hub",
-		Subtitle = "discord.gg/EFFKrfFkPQ",
+		Title = "Maclib Demo",
+		Subtitle = "This is a subtitle.",
 		Size = UDim2.fromOffset(868, 650),
 		DragStyle = 1,
 		DisabledWindowControls = {},
@@ -5840,135 +5669,21 @@ function MacLib:Demo()
 		TabGroup1 = Window:TabGroup()
 	}
 
-	local tabs = {}
-	tabs.Main = tabGroups.TabGroup1:Tab({ Name = "Demo", Image = "rbxassetid://18821914323" })
-	tabGroups.TabGroup1:Divider({ Text = "Config" })
-	tabs.Settings = tabGroups.TabGroup1:Tab({ Name = "Settings", Image = "rbxassetid://10734950309" })
+	local tabs = {
+		Main = tabGroups.TabGroup1:Tab({ Name = "Demo", Image = "rbxassetid://18821914323" }),
+		Settings = tabGroups.TabGroup1:Tab({ Name = "Settings", Image = "rbxassetid://10734950309" })
+	}
 
 	local sections = {
 		MainSection1 = tabs.Main:Section({ Side = "Left" }),
-		MainSection2 = tabs.Main:Section({ Side = "Right" }),
 	}
-
-	-- ===== Y2k: theme + background customizer (Settings tab, Left) =====
-	local themeSec = tabs.Settings:Section({ Side = "Left" })
-	themeSec:Header({ Name = "Appearance" })
-	themeSec:Divider({ Text = "Preset" })
-	themeSec:Dropdown({
-		Name = "Theme Preset",
-		Options = MacLib.ThemePresetOrder,
-		Default = "Y2k",
-		Callback = function(name)
-			local pset = MacLib:ApplyThemePreset(name)
-			if pset then
-				pcall(function() MacLib.Options.Y2kAccent:SetColor(pset.Accent, false) end)
-				pcall(function() MacLib.Options.Y2kBackground:SetColor(pset.Background, false) end)
-				pcall(function() MacLib.Options.Y2kText:SetColor(pset.Text, false) end)
-			end
-		end,
-	}, "Y2kPreset")
-	themeSec:Divider({ Text = "Colors" })
-	themeSec:Colorpicker({ Name = "Accent", Default = MacLib.Theme.Accent, Callback = function(c) MacLib:SetThemeColor("Accent", c) end }, "Y2kAccent")
-	themeSec:Colorpicker({ Name = "Background", Default = MacLib.Theme.Background, Callback = function(c) MacLib:SetThemeColor("Background", c) end }, "Y2kBackground")
-	themeSec:Colorpicker({ Name = "Text", Default = MacLib.Theme.Text, Callback = function(c) MacLib:SetThemeColor("Text", c) end }, "Y2kText")
-	themeSec:Divider({ Text = "Background FX" })
-	themeSec:Dropdown({
-		Name = "Animation",
-		Options = MacLib.BackgroundAnimOptions,
-		Default = "Grid",
-		Callback = function(name) MacLib:SetBackgroundAnim(name) end,
-	}, "Y2kBgAnim")
-	themeSec:Toggle({ Name = "Enabled", Default = true, Callback = function(on) MacLib:SetWaves(on) end }, "Y2kWaves")
-	themeSec:Colorpicker({ Name = "FX Color", Default = MacLib.WaveColor, Callback = function(c) MacLib:SetWaveColor(c) end }, "Y2kWaveColor")
-	themeSec:Slider({ Name = "FX Speed", Default = 1, Minimum = 0.2, Maximum = 4, DisplayMethod = "Round", Precision = 1, Callback = function(v) MacLib:SetWaveSpeed(v) end }, "Y2kWaveSpeed")
-	themeSec:Divider({ Text = "Window" })
-	themeSec:Toggle({ Name = "Lock Window (no drag)", Default = false, Callback = function(state) Window:SetLocked(state) end }, "Y2kLockWindow")
-
-
-	local utilSec = tabs.Settings:Section({ Side = "Right" })
-	utilSec:Header({ Name = "Utilities" })
-	utilSec:Divider({ Text = "Config share" })
-	utilSec:Button({
-		Name = "Export config -> clipboard",
-		Callback = function()
-			local s = MacLib:ExportConfigString()
-			if s and (setclipboard or toclipboard) then (setclipboard or toclipboard)(s) end
-			Window:Notify({ Title = "Config", Description = s and "Copied config to clipboard" or "Export failed" })
-		end,
-	})
-	utilSec:Button({
-		Name = "Import config <- clipboard",
-		Callback = function()
-			local txt = (getclipboard and getclipboard()) or ""
-			local ok, err = MacLib:ImportConfigString(txt)
-			Window:Notify({ Title = "Config", Description = ok and "Config loaded successfully" or ("Import failed: " .. tostring(err)) })
-		end,
-	})
-	utilSec:Divider({ Text = "Server" })
-	utilSec:Button({
-		Name = "Rejoin",
-		Callback = function()
-			local LP = game:GetService("Players").LocalPlayer
-			pcall(function() game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LP) end)
-		end,
-	})
-	utilSec:Button({
-		Name = "Server Hop",
-		Callback = function()
-			local TS = game:GetService("TeleportService")
-			local LP = game:GetService("Players").LocalPlayer
-			local ok, res = pcall(function()
-				return game:GetService("HttpService"):JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
-			end)
-			if ok and res and res.data then
-				for _, sv in ipairs(res.data) do
-					if sv.playing and sv.maxPlayers and sv.playing < sv.maxPlayers and sv.id ~= game.JobId then
-						TS:TeleportToPlaceInstance(game.PlaceId, sv.id, LP)
-						return
-					end
-				end
-			end
-			pcall(function() TS:Teleport(game.PlaceId, LP) end)
-		end,
-	})
-	utilSec:Button({ Name = "Unload UI", Callback = function() Window:Unload() end })
-	utilSec:Divider({ Text = "Targets" })
-	local function y2kPlayers()
-		local t = {}
-		for _, pl in ipairs(game:GetService("Players"):GetPlayers()) do table.insert(t, pl.Name) end
-		return t
-	end
-	local targetDD = utilSec:Dropdown({
-		Name = "Target Player",
-		Options = y2kPlayers(),
-		Callback = function(v) print("Target:", v) end,
-	}, "Y2kTarget")
-	local function refreshTargets()
-		pcall(function() targetDD:ClearOptions() targetDD:InsertOptions(y2kPlayers()) end)
-	end
-	game:GetService("Players").PlayerAdded:Connect(refreshTargets)
-	game:GetService("Players").PlayerRemoving:Connect(function() task.wait(0.2) refreshTargets() end)
-
-
-	sections.MainSection2:Header({ Name = "Right Side" })
-	sections.MainSection2:Toggle({ Name = "Right Toggle", Default = true, Tooltip = "Hover description: toggles the right-side feature." })
-	sections.MainSection2:Divider({ Text = "More" })
-	sections.MainSection2:Button({ Name = "Right Button" })
 
 	sections.MainSection1:Header({
 		Name = "Header #1"
 	})
 
-	sections.MainSection1:Divider({ Text = "Section" })
-
-	local comboToggle = sections.MainSection1:Toggle({ Name = "Toggle + Keybind + Color", Default = false })
-	Tooltip = "A toggle with a keybind and colorpicker attached.",
-	comboToggle:Keybind({ Default = Enum.KeyCode.E })
-	comboToggle:Colorpicker({ Default = Color3.fromRGB(255, 110, 110) })
-
 	sections.MainSection1:Button({
 		Name = "Button",
-		Tooltip = "Click me to run the button action.",
 		Callback = function()
 			Window:Dialog({
 				Title = Window.Settings.Title,
@@ -6005,7 +5720,6 @@ function MacLib:Demo()
 
 	sections.MainSection1:Slider({
 		Name = "Slider",
-		Tooltip = "Drag to change the value (0-100).",
 		Default = 50,
 		Minimum = 0,
 		Maximum = 100,
@@ -6162,27 +5876,5 @@ function MacLib:Demo()
 	tabs.Main:Select()
 	MacLib:LoadAutoLoadConfig()
 end
-
-local _y2kErr
-local _y2kOk = xpcall(function() MacLib:Demo() end, function(e)
-	_y2kErr = tostring(e)
-	return e
-end)
-if not _y2kOk then
-	warn("[Y2k] UI build error: " .. tostring(_y2kErr))
-	pcall(function()
-		local sg = Instance.new("ScreenGui")
-		sg.Name = "Y2kError"; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true
-		sg.Parent = (gethui and gethui()) or game:GetService("CoreGui")
-		local t = Instance.new("TextLabel")
-		t.Size = UDim2.new(1, -40, 1, -120); t.Position = UDim2.new(0, 20, 0, 60)
-		t.BackgroundColor3 = Color3.fromRGB(16,16,20)
-		t.TextColor3 = Color3.fromRGB(255,120,120); t.TextWrapped = true
-		t.TextXAlignment = Enum.TextXAlignment.Left; t.TextYAlignment = Enum.TextYAlignment.Top
-		t.Font = Enum.Font.Code; t.TextSize = 16
-		t.Text = "Y2k build error: " .. tostring(_y2kErr); t.Parent = sg
-	end)
-end
-
 
 return MacLib

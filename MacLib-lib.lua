@@ -6163,26 +6163,4 @@ function MacLib:Demo()
 	MacLib:LoadAutoLoadConfig()
 end
 
-local _y2kErr
-local _y2kOk = xpcall(function() MacLib:Demo() end, function(e)
-	_y2kErr = tostring(e)
-	return e
-end)
-if not _y2kOk then
-	warn("[Y2k] UI build error: " .. tostring(_y2kErr))
-	pcall(function()
-		local sg = Instance.new("ScreenGui")
-		sg.Name = "Y2kError"; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true
-		sg.Parent = (gethui and gethui()) or game:GetService("CoreGui")
-		local t = Instance.new("TextLabel")
-		t.Size = UDim2.new(1, -40, 1, -120); t.Position = UDim2.new(0, 20, 0, 60)
-		t.BackgroundColor3 = Color3.fromRGB(16,16,20)
-		t.TextColor3 = Color3.fromRGB(255,120,120); t.TextWrapped = true
-		t.TextXAlignment = Enum.TextXAlignment.Left; t.TextYAlignment = Enum.TextYAlignment.Top
-		t.Font = Enum.Font.Code; t.TextSize = 16
-		t.Text = "Y2k build error: " .. tostring(_y2kErr); t.Parent = sg
-	end)
-end
-
-
 return MacLib

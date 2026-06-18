@@ -1,11 +1,11 @@
--- ============================================================================
+﻿-- ============================================================================
 --  Y2k key provider  (drop-in replacement for the Junkie SDK)
 --  Talks to YOUR Cloudflare Worker + KV key server (server-side hashing, HWID
 --  auto-bind, expiry). CONFIGURE the two URLs below. Server: server-example/.
 -- ============================================================================
 local Junkie = {}
 do
-	local KEY_API  = "https://y2k-keys.y2kscript.workers.dev"  -- your deployed Worker (LIVE)
+	local KEY_API  = "https://y2kscript.xyz"  -- your deployed Worker (LIVE)
 	local KEY_LINK = "https://work.ink/2Dgt/ks-int12887-kq76mlra7lo" -- work.ink key link
 
 	local HttpService = game:GetService("HttpService")
@@ -390,15 +390,48 @@ ToastSystem.RepositionToasts = function()
 	end
 end
 
+-- Open the Discord invite directly in the user's Discord app (RPC), + copy the link.
+local function openDiscord()
+	local code = "EFFKrfFkPQ"
+	pcall(function() (setclipboard or toclipboard or function() end)("https://discord.gg/" .. code) end)
+	local req = (syn and syn.request) or (http and http.request) or http_request or request or (fluxus and fluxus.request)
+	if req then
+		pcall(function()
+			req({
+				Url = "http://127.0.0.1:6463/rpc?v=1",
+				Method = "POST",
+				Headers = { ["Content-Type"] = "application/json", Origin = "https://discord.com" },
+				Body = game:GetService("HttpService"):JSONEncode({
+					cmd = "INVITE_BROWSER",
+					nonce = game:GetService("HttpService"):GenerateGUID(false),
+					args = { code = code },
+				}),
+			})
+		end)
+	end
+end
+
 local function Build()
-	local parent = (gethui and gethui()) or game:GetService("CoreGui")
-	local old = parent:FindFirstChild("Y2kKeySystem"); if old then old:Destroy() end
 	local screen = Instance.new("ScreenGui")
 	screen.Name = "Y2kKeySystem"
 	screen.ResetOnSpawn = false
 	screen.IgnoreGuiInset = true
 	screen.DisplayOrder = 99999
-	screen.Parent = parent
+	-- robust parenting (matches the main UI; works across executors)
+	local LP = game:GetService("Players").LocalPlayer
+	local parent
+	pcall(function()
+		if game:GetService("RunService"):IsStudio() and LP and LP:FindFirstChild("PlayerGui") then parent = LP.PlayerGui
+		elseif typeof(gethui) == "function" then parent = gethui()
+		elseif syn and typeof(syn.protect_gui) == "function" then syn.protect_gui(screen); parent = game:GetService("CoreGui")
+		elseif typeof(protectgui) == "function" then protectgui(screen); parent = game:GetService("CoreGui")
+		elseif cloneref then parent = cloneref(game:GetService("CoreGui"))
+		else parent = game:GetService("CoreGui") end
+	end)
+	if not parent then parent = (LP and LP:FindFirstChild("PlayerGui")) or game:GetService("CoreGui") end
+	local old = parent:FindFirstChild("Y2kKeySystem"); if old then old:Destroy() end
+	-- NOTE: screen is parented at the END of Build (after the whole tree is built) to avoid
+	-- "lacking capability Plugin" errors when adding children into a gethui-protected tree.
 
 	SetBlur(true)
 
@@ -428,7 +461,7 @@ local function Build()
 	local function hair(p, t) local s = Instance.new("UIStroke") s.Color = C.Hair s.Transparency = t or 0.9 s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border s.Parent = p end
 
 	-- Y2k logo (PNG on the worker; Roblox can't render webp)
-	local logoImage = "https://y2k-keys.y2kscript.workers.dev/asset?name=logo"
+	local logoImage = "https://y2kscript.xyz/asset?name=logo"
 	if writefile and getcustomasset and isfile then
 		pcall(function()
 			if not isfile("y2k_logo.png") then writefile("y2k_logo.png", game:HttpGet(logoImage)) end
@@ -468,9 +501,13 @@ local function Build()
 	title.Size = UDim2.new(1, 0, 0, 24); title.BackgroundTransparency = 1; title.Text = "Y2k Script"
 	title.TextColor3 = C.Text; title.Font = Enum.Font.GothamBold; title.TextSize = 21; title.LayoutOrder = 1; title.Parent = content
 
-	local sub = Instance.new("TextLabel")
+	local sub = Instance.new("TextButton")
 	sub.Size = UDim2.new(1, 0, 0, 16); sub.BackgroundTransparency = 1; sub.Text = "discord.gg/EFFKrfFkPQ"
-	sub.TextColor3 = C.Sub; sub.Font = Enum.Font.Gotham; sub.TextSize = 12; sub.LayoutOrder = 2; sub.Parent = content
+	sub.TextColor3 = C.Accent; sub.Font = Enum.Font.GothamMedium; sub.TextSize = 12; sub.LayoutOrder = 2
+	sub.AutoButtonColor = false; sub.Parent = content
+	sub.MouseButton1Click:Connect(function() openDiscord(); ToastSystem.Create(screen, "Opening Discord (link copied)", "success") end)
+	sub.MouseEnter:Connect(function() Utils.Tween(sub, { TextColor3 = C.Accent:Lerp(Color3.new(1, 1, 1), 0.35) }, 0.15) end)
+	sub.MouseLeave:Connect(function() Utils.Tween(sub, { TextColor3 = C.Accent }, 0.15) end)
 
 	local status = Instance.new("TextLabel")
 	status.Size = UDim2.new(1, 0, 0, 14); status.BackgroundTransparency = 1; status.Text = "ENTER YOUR KEY"
@@ -489,12 +526,26 @@ local function Build()
 	redeem.TextColor3 = Color3.new(1, 1, 1); redeem.Font = Enum.Font.GothamBold; redeem.TextSize = 14
 	redeem.AutoButtonColor = false; redeem.LayoutOrder = 5; redeem.Parent = content
 	corner(redeem, 11)
+	do  -- premium accent button: vertical sheen gradient + glow border
+		local g = Instance.new("UIGradient") g.Rotation = 90
+		g.Color = ColorSequence.new(C.Accent:Lerp(Color3.new(1, 1, 1), 0.16), C.Accent:Lerp(Color3.new(0, 0, 0), 0.14))
+		g.Parent = redeem
+		local st = Instance.new("UIStroke") st.Color = C.Accent:Lerp(Color3.new(1, 1, 1), 0.4) st.Transparency = 0.35 st.Thickness = 1 st.Parent = redeem
+		local sg = Instance.new("UIGradient") sg.Rotation = 90
+		sg.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 0.8) }) sg.Parent = st
+	end
 
 	local getKey = Instance.new("TextButton")
 	getKey.Size = UDim2.new(1, 0, 0, 42); getKey.BackgroundColor3 = C.Field; getKey.Text = "Get Key"
 	getKey.TextColor3 = C.Text; getKey.Font = Enum.Font.GothamBold; getKey.TextSize = 13
 	getKey.AutoButtonColor = false; getKey.LayoutOrder = 6; getKey.Parent = content
-	corner(getKey, 11); hair(getKey, 0.9)
+	corner(getKey, 11); hair(getKey, 0.88)
+	do  -- premium dark button: subtle depth gradient + accent-tinted hairline
+		local g = Instance.new("UIGradient") g.Rotation = 90
+		g.Color = ColorSequence.new(Color3.fromRGB(36, 36, 42), Color3.fromRGB(24, 24, 28))
+		g.Parent = getKey
+		local st = Instance.new("UIStroke") st.Color = C.Accent st.Transparency = 0.7 st.Thickness = 1 st.Parent = getKey
+	end
 
 	-- (no close button: the key system can't be closed until a key is redeemed)
 
@@ -540,9 +591,15 @@ local function Build()
 	UserInputService.InputChanged:Connect(function(i) if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - ds; card.Position = UDim2.new(sp.X.Scale, sp.X.Offset + d.X, sp.Y.Scale, sp.Y.Offset + d.Y) end end)
 	UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
 
+	card.BackgroundTransparency = 0; card.Position = UDim2.fromScale(0.5, 0.5)  -- visible immediately (no reliance on intro tween)
 	card.BackgroundTransparency = 1; card.Position = UDim2.new(0.5, 0, 0.5, 60)
 	Utils.Tween(card, { BackgroundTransparency = 0, Position = UDim2.fromScale(0.5, 0.5) }, 0.45, Enum.EasingStyle.Quint)
+	task.delay(0.6, function() if card and card.Parent then card.BackgroundTransparency = 0; card.Position = UDim2.fromScale(0.5, 0.5) end end)  -- failsafe
 
+	-- parent the fully-built tree last (avoids the capability error)
+	if not pcall(function() screen.Parent = parent end) then
+		pcall(function() screen.Parent = (LP and LP:WaitForChild("PlayerGui", 5)) end)
+	end
 	return screen
 end
 

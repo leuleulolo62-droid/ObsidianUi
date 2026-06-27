@@ -1,4 +1,4 @@
-﻿-- ============================================================================
+-- ============================================================================
 --  Y2k key provider  (drop-in replacement for the Junkie SDK)
 --  Talks to YOUR Cloudflare Worker + KV key server (server-side hashing, HWID
 --  auto-bind, expiry). CONFIGURE the two URLs below. Server: server-example/.
@@ -6,7 +6,7 @@
 local Junkie = {}
 do
 	local KEY_API  = "https://y2kscript.xyz"  -- your deployed Worker (LIVE)
-	local KEY_LINK = "https://work.ink/2Dgt/ks-int12887-kq76mlra7lo" -- work.ink key link
+	local KEY_LINK = "https://y2kscript.xyz/getkey" -- the Y2k key page (work.ink + LootLabs, Discord gate)
 
 	local HttpService = game:GetService("HttpService")
 	local function enc(s) local ok, r = pcall(function() return HttpService:UrlEncode(s) end) return ok and r or s end
@@ -93,25 +93,19 @@ local fileSystemSupported = hasFileSystemSupport()
 
 local function saveVerifiedKey(key)
     if not fileSystemSupported then return false end
-    local ok = pcall(function()
-        writefile("verified_key.txt", key)
-    end)
+    local ok = pcall(function() writefile("verified_key.txt", key) end)
     return ok
 end
 
 local function loadVerifiedKey()
-    if not fileSystemSupported then 
-        return nil 
-    end
-    
-    local ok, content = pcall(function()
-        return readfile("verified_key.txt")
+    if not fileSystemSupported then return nil end
+    local content
+    local ok = pcall(function()
+        if isfile("verified_key.txt") then
+            content = readfile("verified_key.txt")
+        end
     end)
-    
-    if not ok or not content then 
-        return nil 
-    end
-    return content
+    return (ok and content) or nil
 end
 
 local function clearSavedKey()
@@ -578,8 +572,8 @@ local function Build()
 		end
 	end)
 	getKey.MouseButton1Click:Connect(function()
-		pcall(function() setclipboard(Junkie.get_key_link()) end)
-		ToastSystem.Create(screen, "Key link copied to clipboard", "success")
+		pcall(function() (setclipboard or toclipboard or function() end)(Junkie.get_key_link()) end)
+		ToastSystem.Create(screen, "Key page copied - open it in your browser to get a key", "success")
 	end)
 	redeem.MouseEnter:Connect(function() Utils.Tween(redeem, { BackgroundColor3 = C.Accent:Lerp(Color3.new(1, 1, 1), 0.12) }, 0.15) end)
 	redeem.MouseLeave:Connect(function() Utils.Tween(redeem, { BackgroundColor3 = C.Accent }, 0.15) end)

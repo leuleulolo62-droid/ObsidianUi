@@ -1,4 +1,4 @@
-﻿local MacLib = { 
+local MacLib = { 
 	Options = {}, 
 	Folder = "Maclib", 
 	GetService = function(service)
@@ -6231,9 +6231,9 @@ do
 		local gname = "?"
 		pcall(function() gname = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name end)
 
-		local strikes, done = 0, false
+		local strikes, done, first = 0, false, true
 		while not done do
-			task.wait(90)
+			if first then first = false else task.wait(90) end   -- poll immediately on load, then every 90s
 			pcall(function()  -- every HTTP below runs ONE AT A TIME in this single thread
 				local key = (getgenv and getgenv().SCRIPT_KEY) or ""
 				if key == "" then return end
@@ -6245,11 +6245,12 @@ do
 				if raw and Library._win and Library._win.SetLicense then
 					local rem, total = tostring(raw):match("^(%-?%d+)|(%d+)")
 					rem, total = tonumber(rem), tonumber(total)
-					if rem and rem < 0 then
-						pcall(function() Library._win:SetLicense(99999, 1) end)        -- lifetime
-					elseif rem then
+					if rem and rem >= 0 then
 						local pct = (total and total > 0) and (rem / total) or 1
 						pcall(function() Library._win:SetLicense(rem / 3600, pct) end)
+					else
+						-- lifetime, keyless, or unknown key -> still show the badge as "lifetime"
+						pcall(function() Library._win:SetLicense(99999, 1) end)
 					end
 				end
 				local drained = 0

@@ -1,4 +1,4 @@
-﻿local MacLib = { 
+local MacLib = { 
 	Options = {}, 
 	Folder = "Maclib", 
 	GetService = function(service)
